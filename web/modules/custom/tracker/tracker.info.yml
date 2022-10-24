@@ -1,0 +1,5 @@
+name: Tracker
+type: module
+description: 'Ztracker'
+core_version_requirement: ^9 || ^10
+package: 'Ztracker'

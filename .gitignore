@@ -9,6 +9,7 @@ settings.local.php
 
 # Ignore Drupal's file directory
 /web/sites/*/files/
+/web/sites/default/files
 /web/sites/default/private/
 
 # Ignore SimpleTest multi-site environment.
@@ -22,3 +23,15 @@ settings.local.php
 
 # Ignore SQL dump files.
 *.sql*
+
+# Ignore DB dumps
+*.sql
+*.sql.gz
+*.mysql
+*.mysql.gz
+
+# Ignore VScode IDE files
+.vscode/
+
+# Ignore Xdebug files
+xdebug.log

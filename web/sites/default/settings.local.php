@@ -17,7 +17,7 @@ $databases['default']['default'] = array (
   'driver' => 'mysql',
 );
 
-//$settings["config_sync_directory"] = '';
+$settings['config_sync_directory'] = '';
 
 /**
  * Show all error messages, with backtrace information.
