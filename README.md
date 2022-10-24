@@ -1,6 +1,5 @@
-# Cineplus - It's more than a movie theatre. It's CINEPLUS.
+# ZTracker - Personal performance tracker.
 
-The objective of this project is to create a whole website covering the most scenarios about an online movie application.
-The idea of this project is to practice Drupal 9 and play around.
-
+The objective of this project is to create a performance tracker system for tracking everything I work on and have the numbers well displayed in a dashboard, thus facilitating the analysis.
+This is also a playground for testing and practising Drupal 9.
 
