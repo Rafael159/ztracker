@@ -1,0 +1,4 @@
+administer tracker performance:
+  title: 'Administer tracker performance functionality'
+  description: 'Keep track of your personal performance'
+  restrict access: true
