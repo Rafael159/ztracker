@@ -9,7 +9,7 @@ settings.local.php
 
 # Ignore Drupal's file directory
 /web/sites/*/files/
-/web/sites/default/files
+/web/sites/*/files
 /web/sites/default/private/
 
 # Ignore SimpleTest multi-site environment.

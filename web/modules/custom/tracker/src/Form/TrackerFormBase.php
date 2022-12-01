@@ -10,9 +10,7 @@ use Drupal\Core\Form\FormStateInterface;
  *
  * @ingroup zmashit
  */
-class TrackerFormBase extends ContentEntityForm
-{
-
+class TrackerFormBase extends ContentEntityForm {
   /**
    * {@inheritdoc}
    */
@@ -27,7 +25,20 @@ class TrackerFormBase extends ContentEntityForm
    * {@inheritdoc}
    */
   public function save(array $form, FormStateInterface $form_state) {
-    // Save the form.
-    return parent::save($form, $form_state);
+    $status = parent::save($form, $form_state);
+
+    switch ($status) {
+      case SAVED_NEW:
+        $this->messenger()
+          ->addMessage($this->t('Created a new track item.'));
+        break;
+
+      default:
+        $this->messenger()
+          ->addMessage($this->t('Saved the new track item.'));
+    }
+    $form_state->setRedirect('entity.tracker.collection');
+
+    return $status;
   }
 }
