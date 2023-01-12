@@ -19,14 +19,21 @@ use Drupal\user\UserInterface;
  *   id = "tracker",
  *   label = @Translation("Performance Tracker"),
  *   handlers = {
+ *     "view_builder" = "Drupal\Core\Entity\ViewBuilder",
  *     "list_builder" = "Drupal\tracker\TrackerListBuilder",
+ *     "views_data" = "Drupal\tracker\Entity\TrackerViewsData",
  *     "form" = {
  *       "default" = "Drupal\tracker\Form\TrackerFormBase",
  *       "add" = "Drupal\tracker\Form\TrackerFormBase",
  *       "edit" = "Drupal\tracker\Form\TrackerFormBase",
  *       "delete" = "Drupal\tracker\Form\TrackerDeleteForm",
  *     },
+ *     "access" = "Drupal\tracker\TrackerAccessControlHandler",
+ *     "route_provider" = {
+ *       "html" = "Drupal\tracker\TrackerHtmlRouteProvider",
+ *     },
  *   },
+ *   base_table = "tracker",
  *   admin_permission = "administer tracker performance",
  *   entity_keys = {
  *     "id" = "id",
@@ -35,11 +42,13 @@ use Drupal\user\UserInterface;
  *     "ticket" = "ticket",
  *   },
  *   links = {
- *     "canonical" = "/admin/tracker/performance/add",
+ *     "canonical" = "/admin/tracker/performance/{tracker}",
+ *     "add-form" = "/admin/tracker/performance/add",
  *     "edit-form" = "/admin/tracker/performance/edit/{tracker}",
  *     "delete-form" = "/admin/tracker/performance/{tracker}/delete",
  *     "collection" = "/admin/tracker/performance",
  *   },
+ *   field_ui_base_route = "tracker.settings"
  * )
  */
 class Tracker extends ContentEntityBase implements TrackerInterface {

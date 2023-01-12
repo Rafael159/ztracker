@@ -11,7 +11,7 @@ entity.tracker.collection:
   path: '/admin/tracker/performance'
   defaults:
     _entity_form: 'tracker'
-    _title: 'Add performance tracker'
+    _title: 'Add performance tracker test 1'
   requirements:
     _permission: 'administer tracker performance'
 
@@ -23,20 +23,20 @@ entity.tracker.add_form:
   requirements:
     _permission: 'administer tracker performance'
 
-entity.tracker.edit:
-  path: '/admin/tracker/performance/edit/{tracker}'
-  defaults:
-    _entity_form: 'tracker.edit'
-    _title: 'Edit the performance tracker'
-  requirements:
-    _permission: 'administer tracker performance'
-
-entity.tracker.delete:
-  path: '/admin/tracker/performance/{tracker}/delete'
-  defaults:
-    _entity_form: 'tracker.delete'
-    _title: 'Delete the performance tracker'
-  requirements:
-    _permission: 'administer tracker performance'
-
-
+#entity.tracker.edit:
+#  path: '/admin/tracker/performance/edit/{tracker}'
+#  defaults:
+#    _entity_form: 'tracker.edit'
+#    _title: 'Edit the performance tracker'
+#  requirements:
+#    _permission: 'administer tracker performance'
+#
+#entity.tracker.delete:
+#  path: '/admin/tracker/performance/{tracker}/delete'
+#  defaults:
+#    _entity_form: 'tracker.delete'
+#    _title: 'Delete the performance tracker'
+#  requirements:
+#    _permission: 'administer tracker performance'
+#
+#

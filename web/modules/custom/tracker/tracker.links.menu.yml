@@ -6,8 +6,9 @@ system.tracker:
   weight: -99
 
 entity.tracker.collection:
-  title: 'Add tracker'
+  title: 'Tracker list'
   route_name: entity.tracker.collection
-  description: 'Add personal performance tracker'
+  description: 'Performance Tracker list'
   parent: system.tracker
+  weight: 0
 
