@@ -7,7 +7,7 @@
 
 // Database configuration
 $databases['default']['default'] = array (
-  'database' => 'cineplus',
+  'database' => 'ztracker',
   'username' => 'root',
   'password' => '08597zoocha',
   'prefix' => '',
@@ -17,7 +17,7 @@ $databases['default']['default'] = array (
   'driver' => 'mysql',
 );
 
-//$settings["config_sync_directory"] = '';
+$settings["config_sync_directory"] = '';
 
 /**
  * Show all error messages, with backtrace information.
@@ -25,7 +25,7 @@ $databases['default']['default'] = array (
  * In case the error level could not be fetched from the database, as for
  * example the database connection failed, we rely only on this value.
  */
-//$config['system.logging']['error_level'] = 'verbose';
+$config['system.logging']['error_level'] = 'verbose';
 
 /**
  * Disable CSS and JS aggregation.
@@ -136,7 +136,7 @@ $settings['skip_permissions_hardening'] = TRUE;
 
 $settings['file_private_path'] = 'sites/default/files/private';
 
-//ini_set('memory_limit', '64M');
+ini_set('memory_limit', '64M');
 ini_set('upload_max_filesize', '20M');
 
 $settings['hash_salt'] = '13565488';
