@@ -1,0 +1,7 @@
+name: ztracker
+recipe: drupal9
+domain: ztracker.local.com
+config:
+  webroot: web
+
+
