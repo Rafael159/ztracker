@@ -7,7 +7,7 @@
 
 // Database configuration
 $databases['default']['default'] = array (
-  'database' => 'cineplus',
+  'database' => 'ztracker',
   'username' => 'root',
   'password' => '08597zoocha',
   'prefix' => '',
@@ -25,7 +25,7 @@ $settings['config_sync_directory'] = '';
  * In case the error level could not be fetched from the database, as for
  * example the database connection failed, we rely only on this value.
  */
-//$config['system.logging']['error_level'] = 'verbose';
+// $config['system.logging']['error_level'] = 'verbose';
 
 /**
  * Disable CSS and JS aggregation.

@@ -1,7 +1,8 @@
 # Ignore sensitive information
 #/web/sites/*/settings.php
-settings.local.php
-/web/sites/development.services.yml
+/web/sites/*/settings*.php
+/web/sites/*/services*.yml
+!/web/sites/*/settings.php
 
 /vendor/**/.git
 /web/**/.git
@@ -12,6 +13,8 @@ settings.local.php
 /web/sites/*/files
 /web/sites/default/private/
 
+private
+
 # Ignore SimpleTest multi-site environment.
 /web/sites/simpletest
 
@@ -21,17 +24,12 @@ settings.local.php
 # Ignore .env files as they are personal
 /.env
 
-# Ignore SQL dump files.
-*.sql*
-
 # Ignore DB dumps
 *.sql
 *.sql.gz
 *.mysql
 *.mysql.gz
 
-# Ignore VScode IDE files
-.vscode/
-
-# Ignore Xdebug files
-xdebug.log
+# Ignore local lando files.
+.lando.local.yml
+php.local.ini
