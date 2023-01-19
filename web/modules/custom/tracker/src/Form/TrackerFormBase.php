@@ -32,12 +32,16 @@ class TrackerFormBase extends ContentEntityForm {
     switch ($status) {
       case SAVED_NEW:
         $this->messenger()
-          ->addMessage($this->t('Created a new track item.'));
+          ->addMessage($this->t('Created the %label track item.', [
+            '%label' => $entity->label(),
+          ]));
         break;
 
       default:
         $this->messenger()
-          ->addMessage($this->t('Saved the new track item.'));
+          ->addMessage($this->t('Saved the %label track item.', [
+            '%label' => $entity->label(),
+          ]));
     }
     $form_state->setRedirect('entity.tracker.canonical', [
       'tracker' => $entity->id(),

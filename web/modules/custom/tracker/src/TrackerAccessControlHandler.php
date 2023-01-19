@@ -6,6 +6,7 @@ use Drupal\Core\Entity\EntityAccessControlHandler;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\Core\Access\AccessResult;
+use Drupal\tracker\Entity\TrackerInterface;
 
 /**
  * Access controller for the Tracker entity.
@@ -15,8 +16,11 @@ class TrackerAccessControlHandler extends EntityAccessControlHandler {
    * {@inheritdoc}
    */
   protected function checkAccess(EntityInterface $entity, $operation, AccountInterface $account) {
-    /** @var Drupal\tracker\Entity\TrackerInterface $entity */
+    /** @var TrackerInterface $entity */
     switch($operation) {
+      case 'view':
+        return AccessResult::allowedIfHasPermission($account, 'view tracker entities');
+
       case 'update':
         return AccessResult::allowedIfHasPermission($account, 'edit tracker entities');
 

@@ -1,0 +1,21 @@
+# Tracker routing
+entity.tracker.settings_tab:
+  route_name: entity.tracker.settings
+  title: 'Tracker settings'
+  base_route: tracker.settings
+
+entity.tracker.canonical:
+  route_name: entity.tracker.canonical
+  base_route: entity.tracker.canonical
+  title: 'Tracker View'
+
+entity.tracker.edit_form:
+  route_name: entity.tracker.edit_form
+  base_route: entity.tracker.canonical
+  title: 'Edit Tracker'
+
+entity.tracker.delete_form:
+  route_name: entity.tracker.delete_form
+  base_route: entity.tracker.canonical
+  title: 'Delete Tracker'
+

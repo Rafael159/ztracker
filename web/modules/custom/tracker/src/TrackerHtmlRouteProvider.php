@@ -25,15 +25,17 @@ class TrackerHtmlRouteProvider extends AdminHtmlRouteProvider {
     if ($settings_form_route = $this->getSettingsFormRoute($entity_type)) {
       $collection->add("$entity_type_id.settings", $settings_form_route);
     }
+
+    return $collection;
   }
 
   /**
    * Gets the settings form route.
    *
-   * @param \Drupal\Core\Entity\EntityTypeInterface $entity_type
+   * @param EntityTypeInterface $entity_type
    *   The entity type.
    *
-   * @return \Symfony\Component\Routing\Route|null
+   * @return Route|null
    *   The generated route, if available.
    */
   private function getSettingsFormRoute(EntityTypeInterface $entity_type) {
@@ -51,6 +53,4 @@ class TrackerHtmlRouteProvider extends AdminHtmlRouteProvider {
     }
     return NULL;
   }
-
-
 }

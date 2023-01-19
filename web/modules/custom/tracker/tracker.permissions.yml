@@ -11,3 +11,6 @@ delete tracker entities:
 
 edit tracker entities:
   title: 'Edit Tracker entities'
+
+view published game entities:
+  title: 'View Tracker entities'

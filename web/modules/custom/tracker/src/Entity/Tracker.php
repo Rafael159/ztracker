@@ -19,7 +19,7 @@ use Drupal\user\UserInterface;
  *   id = "tracker",
  *   label = @Translation("Performance Tracker"),
  *   handlers = {
- *     "view_builder" = "Drupal\Core\Entity\ViewBuilder",
+ *     "view_builder" = "Drupal\Core\Entity\EntityViewBuilder",
  *     "list_builder" = "Drupal\tracker\TrackerListBuilder",
  *     "views_data" = "Drupal\tracker\Entity\TrackerViewsData",
  *     "form" = {
@@ -44,9 +44,9 @@ use Drupal\user\UserInterface;
  *   links = {
  *     "canonical" = "/admin/tracker/performance/{tracker}",
  *     "add-form" = "/admin/tracker/performance/add",
- *     "edit-form" = "/admin/tracker/performance/edit/{tracker}",
+ *     "edit-form" = "/admin/tracker/performance/{tracker}/edit",
  *     "delete-form" = "/admin/tracker/performance/{tracker}/delete",
- *     "collection" = "/admin/tracker/performance",
+ *     "collection" = "/admin/tracker/content",
  *   },
  *   field_ui_base_route = "tracker.settings"
  * )
@@ -98,7 +98,7 @@ class Tracker extends ContentEntityBase implements TrackerInterface {
     // The last part of the ticket - i.e ZSD-121.
     $fields['ticket'] = BaseFieldDefinition::create('string')
       ->setLabel(t('Ticket'))
-      ->setDescription(t('The link to the ticket'))
+      ->setDescription(t('The ticket code (e.g ZTSD-01'))
       ->setDisplayOptions('view', [
         'label' => 'above',
         'type' => 'string',
