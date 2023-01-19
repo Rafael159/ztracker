@@ -3,5 +3,8 @@ recipe: drupal9
 domain: ztracker.local.com
 config:
   webroot: web
-
+  php: "8.1"
+  via: nginx:1.16
+  drush: 8.3.5
+  xdebug: true
 

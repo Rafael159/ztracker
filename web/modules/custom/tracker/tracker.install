@@ -1,0 +1,10 @@
+<?php
+
+/**
+ * Implements hook_update_N().
+ *
+ * Enable tracker module.
+ */
+function tracker_update_9001(&$sandbox) {
+  \Drupal::service('module_installer')->install(['tracker'], TRUE);
+}

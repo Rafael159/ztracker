@@ -1,0 +1,7 @@
+tracker.performance.config:
+  path: '/admin/tracker'
+  defaults:
+    _controller: '\Drupal\system\Controller\SystemController::systemAdminMenuBlockPage'
+    _title: 'Tracker'
+  requirements:
+    _permission: 'administer tracker performance'

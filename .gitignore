@@ -10,6 +10,7 @@
 
 # Ignore Drupal's file directory
 /web/sites/*/files/
+/web/sites/*/files
 /web/sites/default/private/
 
 private
@@ -32,3 +33,9 @@ private
 # Ignore local lando files.
 .lando.local.yml
 php.local.ini
+
+# Ignore VScode IDE files
+.vscode/
+
+# Ignore Xdebug files
+xdebug.log

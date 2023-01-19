@@ -1,0 +1,19 @@
+system.tracker:
+  title: 'Performance Tracker'
+  route_name: tracker.performance.config
+  description: 'Add performance trackers to the page'
+  parent: system.admin
+  weight: -99
+
+entity.tracker.collection:
+  title: 'Tracker List'
+  route_name: entity.tracker.collection
+  description: 'Performance Tracker list'
+  parent: system.tracker
+  weight: -99
+
+tracker.admin.settings:
+  title: 'Tracker Settings'
+  description: 'Configuration Tracker settings'
+  route_name: tracker.settings
+  parent: system.tracker

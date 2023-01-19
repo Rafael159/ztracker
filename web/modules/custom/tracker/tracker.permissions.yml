@@ -1,0 +1,16 @@
+administer tracker performance:
+  title: 'Administer tracker performance functionality'
+  description: 'Keep track of your personal performance'
+  restrict access: true
+
+add tracker entities:
+  title: 'Create new Tracker entities'
+
+delete tracker entities:
+  title: 'Delete Tracker entities'
+
+edit tracker entities:
+  title: 'Edit Tracker entities'
+
+view published game entities:
+  title: 'View Tracker entities'
