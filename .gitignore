@@ -33,3 +33,9 @@ private
 # Ignore local lando files.
 .lando.local.yml
 php.local.ini
+
+# Ignore VScode IDE files
+.vscode/
+
+# Ignore Xdebug files
+xdebug.log
