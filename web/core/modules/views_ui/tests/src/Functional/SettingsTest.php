@@ -14,7 +14,7 @@ class SettingsTest extends UITestBase {
   /**
    * Stores an admin user used by the different tests.
    *
-   * @var \Drupal\user\User
+   * @var \Drupal\user\Entity\User
    */
   protected $adminUser;
 
@@ -26,8 +26,8 @@ class SettingsTest extends UITestBase {
   /**
    * {@inheritdoc}
    */
-  protected function setUp($import_test_views = TRUE): void {
-    parent::setUp($import_test_views);
+  protected function setUp($import_test_views = TRUE, $modules = ['views_test_config']): void {
+    parent::setUp($import_test_views, $modules);
     $this->drupalPlaceBlock('local_tasks_block');
   }
 

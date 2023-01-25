@@ -12,6 +12,7 @@ use Drupal\Tests\BrowserTestBase;
  * Tests administration of CKEditor.
  *
  * @group ckeditor
+ * @group legacy
  */
 class CKEditorAdminTest extends BrowserTestBase {
 
@@ -34,6 +35,9 @@ class CKEditorAdminTest extends BrowserTestBase {
    */
   protected $adminUser;
 
+  /**
+   * {@inheritdoc}
+   */
   protected function setUp(): void {
     parent::setUp();
 
@@ -108,7 +112,7 @@ class CKEditorAdminTest extends BrowserTestBase {
           ],
         ],
       ],
-      'plugins' => ['language' => ['language_list' => 'un']],
+      'plugins' => [],
     ];
     $this->assertEquals($expected_default_settings, $ckeditor->getDefaultSettings());
 
@@ -136,22 +140,27 @@ class CKEditorAdminTest extends BrowserTestBase {
     $expected_buttons_value = json_encode($expected_default_settings['toolbar']['rows']);
     $this->assertSession()->fieldValueEquals('editor[settings][toolbar][button_groups]', $expected_buttons_value);
 
-    // Ensure the styles textarea exists and is initialized empty.
-    $this->assertSession()->fieldValueEquals('editor[settings][plugins][stylescombo][styles]', '');
-
     // Submit the form to save the selection of CKEditor as the chosen editor.
     $this->submitForm($edit, 'Save configuration');
 
     // Ensure an Editor object exists now, with the proper settings.
     $expected_settings = $expected_default_settings;
-    $expected_settings['plugins']['stylescombo']['styles'] = '';
     $editor = Editor::load('filtered_html');
     $this->assertInstanceOf(Editor::class, $editor);
     $this->assertEquals($expected_settings, $editor->getSettings(), 'The Editor config entity has the correct settings.');
 
     // Configure the Styles plugin, and ensure the updated settings are saved.
     $this->drupalGet('admin/config/content/formats/manage/filtered_html');
+
+    // Ensure the styles textarea exists and is initialized empty.
+    $this->assertSession()->fieldValueEquals('editor[settings][plugins][stylescombo][styles]', '');
+
+    $expected_settings['toolbar']['rows'][0][] = [
+      'name' => 'Styles dropdown',
+      'items' => ['Styles'],
+    ];
     $edit = [
+      'editor[settings][toolbar][button_groups]' => json_encode($expected_settings['toolbar']['rows']),
       'editor[settings][plugins][stylescombo][styles]' => "h1.title|Title\np.callout|Callout\n\n",
     ];
     $this->submitForm($edit, 'Save configuration');
@@ -164,6 +173,7 @@ class CKEditorAdminTest extends BrowserTestBase {
     // done via drag and drop, but here we can only emulate the end result of
     // that interaction). Test multiple toolbar rows and a divider within a row.
     $this->drupalGet('admin/config/content/formats/manage/filtered_html');
+    $expected_settings = $expected_default_settings;
     $expected_settings['toolbar']['rows'][0][] = [
       'name' => 'Action history',
       'items' => ['Undo', '|', 'Redo', 'JustifyCenter'],
@@ -205,7 +215,12 @@ class CKEditorAdminTest extends BrowserTestBase {
 
     // Finally, check the "Ultra llama mode" checkbox.
     $this->drupalGet('admin/config/content/formats/manage/filtered_html');
+    $expected_settings['toolbar']['rows'][0][] = [
+      'name' => 'Ultra llama mode',
+      'items' => ['Llama'],
+    ];
     $edit = [
+      'editor[settings][toolbar][button_groups]' => json_encode($expected_settings['toolbar']['rows']),
       'editor[settings][plugins][llama_contextual_and_button][ultra_llama_mode]' => '1',
     ];
     $this->submitForm($edit, 'Save configuration');
@@ -287,7 +302,6 @@ class CKEditorAdminTest extends BrowserTestBase {
 
     // Ensure an Editor object exists now, with the proper settings.
     $expected_settings = $default_settings;
-    $expected_settings['plugins']['stylescombo']['styles'] = '';
     $editor = Editor::load('amazing_format');
     $this->assertInstanceOf(Editor::class, $editor);
     $this->assertEquals($expected_settings, $editor->getSettings(), 'The Editor config entity has the correct settings.');

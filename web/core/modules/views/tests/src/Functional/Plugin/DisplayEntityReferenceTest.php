@@ -70,8 +70,8 @@ class DisplayEntityReferenceTest extends ViewTestBase {
   /**
    * {@inheritdoc}
    */
-  protected function setUp($import_test_views = TRUE): void {
-    parent::setUp($import_test_views);
+  protected function setUp($import_test_views = TRUE, $modules = ['views_test_config']): void {
+    parent::setUp($import_test_views, $modules);
 
     $this->drupalLogin($this->drupalCreateUser(['administer views']));
 
@@ -122,7 +122,7 @@ class DisplayEntityReferenceTest extends ViewTestBase {
     EntityTest::create([
       'bundle' => 'entity_test',
       'name' => 'name',
-      $this->fieldName => 'sometext',
+      $this->fieldName => 'some_text',
     ])->save();
   }
 
@@ -275,6 +275,23 @@ class DisplayEntityReferenceTest extends ViewTestBase {
     $view->setDisplay('entity_reference_1');
     $render = $view->display_handler->render();
     $this->assertSame([], $render, 'Render returned empty array');
+
+    // Execute the View without setting the 'entity_reference_options'.
+    // This is equivalent to using the following as entity_reference_options.
+    // @code
+    // $options = [
+    //   'match' => NULL,
+    //   'match_operator' => 'CONTAINS',
+    //   'limit' => 0,
+    //   'ids' => NULL,
+    // ];
+    // @endcode
+    // Assert that this view returns a row for each test entity.
+    $view->destroy();
+    $view = Views::getView('test_display_entity_reference');
+    $view->setDisplay('entity_reference_1');
+    $this->executeView($view);
+    $this->assertCount(13, $view->result, 'Search returned thirteen rows');
   }
 
 }

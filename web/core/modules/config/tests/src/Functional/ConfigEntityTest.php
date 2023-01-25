@@ -189,7 +189,7 @@ class ConfigEntityTest extends BrowserTestBase {
     $this->assertTrue($same_id->isNew());
     try {
       $same_id->save();
-      $this->fail('Not possible to overwrite an entity entity.');
+      $this->fail('Not possible to overwrite an entity.');
     }
     catch (EntityStorageException $e) {
       // Expected exception; just continue testing.
@@ -225,7 +225,7 @@ class ConfigEntityTest extends BrowserTestBase {
   /**
    * Tests CRUD operations through the UI.
    */
-  public function testCRUDUI() {
+  public function testCrudUi() {
     $this->drupalLogin($this->drupalCreateUser([
       'administer site configuration',
     ]));

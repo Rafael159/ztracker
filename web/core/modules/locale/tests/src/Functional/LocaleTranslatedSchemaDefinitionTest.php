@@ -2,6 +2,7 @@
 
 namespace Drupal\Tests\locale\Functional;
 
+use Drupal\Core\Url;
 use Drupal\language\Entity\ConfigurableLanguage;
 use Drupal\Tests\BrowserTestBase;
 use Drupal\Tests\RequirementsPageTrait;
@@ -25,7 +26,7 @@ class LocaleTranslatedSchemaDefinitionTest extends BrowserTestBase {
   /**
    * {@inheritdoc}
    */
-  protected $defaultTheme = 'classy';
+  protected $defaultTheme = 'stark';
 
   /**
    * {@inheritdoc}
@@ -71,7 +72,7 @@ class LocaleTranslatedSchemaDefinitionTest extends BrowserTestBase {
     // Visit the update page to collect any strings that may be translatable.
     $user = $this->drupalCreateUser(['administer software updates']);
     $this->drupalLogin($user);
-    $update_url = $GLOBALS['base_url'] . '/update.php';
+    $update_url = Url::fromRoute('system.db_update')->setAbsolute()->toString();
 
     // Collect strings from the PHP warning page, if applicable, as well as the
     // main update page.
@@ -95,7 +96,7 @@ class LocaleTranslatedSchemaDefinitionTest extends BrowserTestBase {
     // markup and a link instead of specific text because text may be
     // translated.
     $this->drupalGet($update_url . '/selection', ['external' => TRUE]);
-    $this->assertSession()->responseContains('messages--status');
+    $this->assertSession()->statusMessageExists('status');
     $this->assertSession()->linkByHrefNotExists('fr/update.php/run', 'No link to run updates.');
   }
 

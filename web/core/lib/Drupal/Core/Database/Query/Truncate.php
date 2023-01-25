@@ -28,29 +28,17 @@ class Truncate extends Query {
    *   Array of database options.
    */
   public function __construct(Connection $connection, $table, array $options = []) {
+    // @todo Remove $options['return'] in Drupal 11.
+    // @see https://www.drupal.org/project/drupal/issues/3256524
     $options['return'] = Database::RETURN_AFFECTED;
     parent::__construct($connection, $options);
     $this->table = $table;
   }
 
   /**
-   * {@inheritdoc}
-   */
-  public function compile(Connection $connection, PlaceholderInterface $queryPlaceholder) {
-    return $this->condition->compile($connection, $queryPlaceholder);
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function compiled() {
-    return $this->condition->compiled();
-  }
-
-  /**
    * Executes the TRUNCATE query.
    *
-   * @return
+   * @return int|null
    *   Return value is dependent on whether the executed SQL statement is a
    *   TRUNCATE or a DELETE. TRUNCATE is DDL and no information on affected
    *   rows is available. DELETE is DML and will return the number of affected
@@ -68,6 +56,8 @@ class Truncate extends Query {
     catch (\Exception $e) {
       $this->connection->exceptionHandler()->handleExecutionException($e, $stmt, [], $this->queryOptions);
     }
+
+    return NULL;
   }
 
   /**

@@ -12,6 +12,11 @@ use Symfony\Component\HttpKernel\HttpKernelInterface;
 class AcceptHeaderMiddleware implements HttpKernelInterface {
 
   /**
+   * The app kernel.
+   */
+  protected $app;
+
+  /**
    * Constructs a new AcceptHeaderMiddleware instance.
    *
    * @param \Symfony\Component\HttpKernel\HttpKernelInterface $app
@@ -27,7 +32,6 @@ class AcceptHeaderMiddleware implements HttpKernelInterface {
   public function handle(Request $request, $type = self::MASTER_REQUEST, $catch = TRUE): Response {
     $mapping = [
       'application/json' => 'json',
-      'application/hal+json' => 'hal_json',
       'application/xml' => 'xml',
       'text/html' => 'html',
     ];

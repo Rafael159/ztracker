@@ -233,7 +233,7 @@ class WebAssert extends MinkWebAssert {
       throw new ElementNotFoundException($this->session->getDriver(), 'select', 'id|name|label|value', $select);
     }
 
-    $option_field = $select_field->find('named', ['option', $option]);
+    $option_field = $select_field->find('named_exact', ['option', $option]);
 
     if ($option_field === NULL) {
       throw new ElementNotFoundException($this->session->getDriver(), 'select', 'id|name|label|value', $option);
@@ -269,7 +269,7 @@ class WebAssert extends MinkWebAssert {
       throw new ElementNotFoundException($this->session->getDriver(), 'select', 'id|name|label|value', $select);
     }
 
-    $option_field = $select_field->find('named', ['option', $option]);
+    $option_field = $select_field->find('named_exact', ['option', $option]);
 
     $this->assert($option_field === NULL, sprintf('An option "%s" exists in select "%s", but it should not.', $option, $select));
   }
@@ -1123,6 +1123,141 @@ class WebAssert extends MinkWebAssert {
       @trigger_error('Calling ' . __METHOD__ . ' with more than two arguments is deprecated in drupal:9.1.0 and will throw an \InvalidArgumentException in drupal:10.0.0. See https://www.drupal.org/node/3162537', E_USER_DEPRECATED);
     }
     return parent::checkboxNotChecked($field, $container);
+  }
+
+  /**
+   * Asserts that a status message exists.
+   *
+   * @param string|null $type
+   *   The optional message type: status, error, or warning.
+   */
+  public function statusMessageExists(string $type = NULL): void {
+    $selector = $this->buildStatusMessageSelector(NULL, $type);
+    try {
+      $this->elementExists('xpath', $selector);
+    }
+    catch (ExpectationException $e) {
+      Assert::fail($e->getMessage());
+    }
+  }
+
+  /**
+   * Asserts that a status message does not exist.
+   *
+   * @param string|null $type
+   *   The optional message type: status, error, or warning.
+   */
+  public function statusMessageNotExists(string $type = NULL): void {
+    $selector = $this->buildStatusMessageSelector(NULL, $type);
+    try {
+      $this->elementNotExists('xpath', $selector);
+    }
+    catch (ExpectationException $e) {
+      Assert::fail($e->getMessage());
+    }
+  }
+
+  /**
+   * Asserts that a status message containing a given string exists.
+   *
+   * @param string $message
+   *   The partial message to assert.
+   * @param string|null $type
+   *   The optional message type: status, error, or warning.
+   */
+  public function statusMessageContains(string $message, string $type = NULL): void {
+    $selector = $this->buildStatusMessageSelector($message, $type);
+    try {
+      $this->elementExists('xpath', $selector);
+    }
+    catch (ExpectationException $e) {
+      Assert::fail($e->getMessage());
+    }
+  }
+
+  /**
+   * Asserts that a status message containing a given string does not exist.
+   *
+   * @param string $message
+   *   The partial message to assert.
+   * @param string|null $type
+   *   The optional message type: status, error, or warning.
+   */
+  public function statusMessageNotContains(string $message, string $type = NULL): void {
+    $selector = $this->buildStatusMessageSelector($message, $type);
+    try {
+      $this->elementNotExists('xpath', $selector);
+    }
+    catch (ExpectationException $e) {
+      Assert::fail($e->getMessage());
+    }
+  }
+
+  /**
+   * Builds a xpath selector for a message with given type and text.
+   *
+   * The selector is designed to work with the status-messages.html.twig
+   * template in the system module.
+   *
+   * See Drupal\Core\Render\Element\StatusMessages for aria label definition.
+   *
+   * @param string|null $message
+   *   The optional message or partial message to assert.
+   * @param string|null $type
+   *   The optional message type: status, error, or warning.
+   *
+   * @return string
+   *   The xpath selector for the message.
+   *
+   * @throws \InvalidArgumentException
+   *   Thrown when $type is not an allowed type.
+   */
+  protected function buildStatusMessageSelector(string $message = NULL, string $type = NULL): string {
+    $allowed_types = [
+      'status',
+      'error',
+      'warning',
+      NULL,
+    ];
+    if (!in_array($type, $allowed_types, TRUE)) {
+      throw new \InvalidArgumentException(sprintf("If a status message type is specified, the allowed values are 'status', 'error', 'warning'. The value provided was '%s'.", $type));
+    }
+    $selector = '//div[@data-drupal-messages]';
+    $aria_label = NULL;
+    switch ($type) {
+      case 'status':
+        $aria_label = 'Status message';
+        break;
+
+      case 'error':
+        $aria_label = 'Error message';
+        break;
+
+      case 'warning':
+        $aria_label = 'Warning message';
+    }
+
+    if ($message && $aria_label && $type) {
+      $selector = $this->buildXPathQuery($selector . '//div[(contains(@aria-label, :aria_label) or contains(@aria-labelledby, :type)) and contains(., :message)]', [
+        // Value of the 'aria-label' attribute, used in Seven and Bartik
+        ':aria_label' => $aria_label,
+        // Value of the 'aria-labelledby' attribute, used in Claro and Olivero.
+        ':type' => $type,
+        ':message' => $message,
+      ]);
+    }
+    elseif ($message) {
+      $selector = $this->buildXPathQuery($selector . '//div[contains(., :message)]', [
+        ':message' => $message,
+      ]);
+    }
+    elseif ($aria_label) {
+      $selector = $this->buildXPathQuery($selector . '//div[@aria-label=:aria_label]', [
+        ':aria_label' => $aria_label,
+      ]);
+    }
+
+    return $selector;
   }
 
 }

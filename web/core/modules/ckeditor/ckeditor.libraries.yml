@@ -51,7 +51,7 @@ drupal.ckeditor.admin:
     - core/drupalSettings
     - core/once
     - core/jquery.once.bc
-    - core/backbone
+    - core/internal.backbone
     - core/drupal.dialog
     - core/drupal.announce
     - core/ckeditor
@@ -92,3 +92,10 @@ drupal.ckeditor.language.admin:
     - core/jquery
     - core/drupal
     - core/drupal.vertical-tabs
+
+drupal.ckeditor.plugins.drupalmedia:
+  version: VERSION
+  js:
+    js/ckeditor.drupalmedia.theme.js: {}
+  dependencies:
+    - core/drupal

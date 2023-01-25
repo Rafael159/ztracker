@@ -41,30 +41,28 @@ class Sql extends QueryPluginBase {
   public $tables = [];
 
   /**
-   * Holds an array of relationships, which are aliases of the primary
-   * table that represent different ways to join the same table in.
+   * Holds an array of relationships.
+   *
+   * These are aliases of the primary table that represent different ways to
+   * join the same table in.
    */
   public $relationships = [];
 
   /**
-   * An array of sections of the WHERE query. Each section is in itself
-   * an array of pieces and a flag as to whether or not it should be AND
-   * or OR.
+   * An array of sections of the WHERE query.
+   *
+   * Each section is in itself an array of pieces and a flag as to whether or
+   * not it should be AND or OR.
    */
+
   public $where = [];
   /**
-   * An array of sections of the HAVING query. Each section is in itself
-   * an array of pieces and a flag as to whether or not it should be AND
-   * or OR.
+   * An array of sections of the HAVING query.
+   *
+   * Each section is in itself an array of pieces and a flag as to whether or
+   * not it should be AND or OR.
    */
   public $having = [];
-  /**
-   * The default operator to use when connecting the WHERE groups. May be
-   * AND or OR.
-   *
-   * @var string
-   */
-  protected $groupOperator = 'AND';
 
   /**
    * A simple array of order by clauses.
@@ -154,6 +152,9 @@ class Sql extends QueryPluginBase {
    *   The messenger.
    */
   public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_type_manager, DateSqlInterface $date_sql, MessengerInterface $messenger) {
+    // By default, use AND operator to connect WHERE groups.
+    $this->groupOperator = 'AND';
+
     parent::__construct($configuration, $plugin_id, $plugin_definition);
 
     $this->entityTypeManager = $entity_type_manager;
@@ -237,7 +238,7 @@ class Sql extends QueryPluginBase {
    * Set the view to be distinct (per base field).
    *
    * @param bool $value
-   *   Should the view be distincted.
+   *   Should the view be distinct.
    */
   protected function setDistinct($value = TRUE) {
     if (!(isset($this->noDistinct) && $value)) {
@@ -579,7 +580,7 @@ class Sql extends QueryPluginBase {
    * @param \Drupal\views\Plugin\views\join\JoinPluginBase $join
    *   A Join object (or derived object) to join the alias in.
    *
-   * @return
+   * @return string|null
    *   The alias used to refer to this specific table, or NULL if the table
    *   cannot be ensured.
    */
@@ -973,6 +974,7 @@ class Sql extends QueryPluginBase {
 
   /**
    * Add a complex HAVING clause to the query.
+   *
    * The caller is responsible for ensuring that all fields are fully qualified
    * (TABLE.FIELD) and that the table and an appropriate GROUP BY already exist in the query.
    * Internally the dbtng method "having" is used.
@@ -1350,14 +1352,14 @@ class Sql extends QueryPluginBase {
     $entity_information = $this->getEntityTableInfo();
     if ($entity_information) {
       $params = [];
-      if ($groupby) {
+      if ($this->hasAggregate) {
         // Handle grouping, by retrieving the minimum entity_id.
         $params = [
           'function' => 'min',
         ];
       }
 
-      foreach ($entity_information as $entity_type_id => $info) {
+      foreach ($entity_information as $info) {
         $entity_type = \Drupal::entityTypeManager()->getDefinition($info['entity_type']);
         $base_field = !$info['revision'] ? $entity_type->getKey('id') : $entity_type->getKey('revision');
         $this->addField($info['alias'], $base_field, '', $params);
@@ -1422,14 +1424,7 @@ class Sql extends QueryPluginBase {
    * Get the arguments attached to the WHERE and HAVING clauses of this query.
    */
   public function getWhereArgs() {
-    $args = [];
-    foreach ($this->where as $where) {
-      $args = array_merge($args, $where['args']);
-    }
-    foreach ($this->having as $having) {
-      $args = array_merge($args, $having['args']);
-    }
-    return $args;
+    return array_merge([], ...array_column($this->where, 'args'), ...array_column($this->having, 'args'));
   }
 
   /**

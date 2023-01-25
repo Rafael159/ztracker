@@ -119,7 +119,7 @@ function locale_translation_batch_status_finished($success, $results) {
     if (!isset($results['failed_files']) && !isset($results['files'])) {
       \Drupal::messenger()->addStatus(t('Nothing to check.'));
     }
-    \Drupal::state()->set('locale.translation_last_checked', REQUEST_TIME);
+    \Drupal::state()->set('locale.translation_last_checked', \Drupal::time()->getRequestTime());
   }
   else {
     \Drupal::messenger()->addError(t('An error occurred trying to check available interface translation updates.'));
@@ -182,7 +182,7 @@ function locale_translation_batch_fetch_import($project, $langcode, $options, &$
     if (isset($source->type)) {
       if ($source->type == LOCALE_TRANSLATION_REMOTE || $source->type == LOCALE_TRANSLATION_LOCAL) {
         $file = $source->files[LOCALE_TRANSLATION_LOCAL];
-        module_load_include('bulk.inc', 'locale');
+        \Drupal::moduleHandler()->loadInclude('locale', 'inc', 'locale.bulk');
         $options += [
           'message' => t('Importing %langcode translation for %project.', ['%langcode' => $langcode, '%project' => $source->project]),
         ];
@@ -217,9 +217,9 @@ function locale_translation_batch_fetch_import($project, $langcode, $options, &$
  *   Batch results.
  */
 function locale_translation_batch_fetch_finished($success, $results) {
-  module_load_include('bulk.inc', 'locale');
+  \Drupal::moduleHandler()->loadInclude('locale', 'inc', 'locale.bulk');
   if ($success) {
-    \Drupal::state()->set('locale.translation_last_checked', REQUEST_TIME);
+    \Drupal::state()->set('locale.translation_last_checked', \Drupal::time()->getRequestTime());
   }
   return locale_translate_batch_finished($success, $results);
 }

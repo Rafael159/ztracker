@@ -2,7 +2,9 @@
 
 namespace Drupal\Tests\standard\Functional;
 
+use Drupal\ckeditor5\Plugin\Editor\CKEditor5;
 use Drupal\Component\Utility\Html;
+use Drupal\editor\Entity\Editor;
 use Drupal\media\Entity\MediaType;
 use Drupal\media\Plugin\media\Source\Image;
 use Drupal\Tests\SchemaCheckTestTrait;
@@ -13,6 +15,7 @@ use Drupal\filter\Entity\FilterFormat;
 use Drupal\Tests\BrowserTestBase;
 use Drupal\Tests\RequirementsPageTrait;
 use Drupal\user\Entity\Role;
+use Symfony\Component\Validator\ConstraintViolation;
 
 /**
  * Tests Standard installation profile expectations.
@@ -38,9 +41,7 @@ class StandardTest extends BrowserTestBase {
    */
   public function testStandard() {
     $this->drupalGet('');
-    $this->assertSession()->linkExists('Contact');
-    $this->clickLink('Contact');
-    $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->pageTextContains('Powered by Drupal');
 
     // Test anonymous user can access 'Main navigation' block.
     $this->adminUser = $this->drupalCreateUser([
@@ -52,9 +53,9 @@ class StandardTest extends BrowserTestBase {
     ]);
     $this->drupalLogin($this->adminUser);
     // Configure the block.
-    $this->drupalGet('admin/structure/block/add/system_menu_block:main/bartik');
+    $this->drupalGet('admin/structure/block/add/system_menu_block:main/olivero');
     $this->submitForm([
-      'region' => 'sidebar_first',
+      'region' => 'sidebar',
       'id' => 'main_navigation',
     ], 'Save block');
     // Verify admin user can see the block.
@@ -63,7 +64,7 @@ class StandardTest extends BrowserTestBase {
 
     // Verify we have role = complementary on help_block blocks.
     $this->drupalGet('admin/structure/block');
-    $this->assertSession()->elementAttributeContains('xpath', "//div[@id='block-bartik-help']", 'role', 'complementary');
+    $this->assertSession()->elementAttributeContains('xpath', "//div[@id='block-olivero-help']", 'role', 'complementary');
 
     // Verify anonymous user can see the block.
     $this->drupalLogout();
@@ -108,10 +109,29 @@ class StandardTest extends BrowserTestBase {
       $this->assertConfigSchema($typed_config, $name, $config->get());
     }
 
+    // Validate all configuration.
+    // @todo Generalize in https://www.drupal.org/project/drupal/issues/2164373
+    foreach (Editor::loadMultiple() as $editor) {
+      // Currently only text editors using CKEditor 5 can be validated.
+      if ($editor->getEditor() !== 'ckeditor5') {
+        continue;
+      }
+
+      $this->assertSame([], array_map(
+        function (ConstraintViolation $v) {
+          return (string) $v->getMessage();
+        },
+        iterator_to_array(CKEditor5::validatePair(
+          $editor,
+          $editor->getFilterFormat()
+        ))
+      ));
+    }
+
     // Ensure that configuration from the Standard profile is not reused when
     // enabling a module again since it contains configuration that can not be
     // installed. For example, editor.editor.basic_html is editor configuration
-    // that depends on the ckeditor module. The ckeditor module can not be
+    // that depends on the CKEditor 5 module. The CKEditor 5 module can not be
     // installed before the editor module since it depends on the editor module.
     // The installer does not have this limitation since it ensures that all of
     // the install profiles dependencies are installed before creating the
@@ -124,7 +144,7 @@ class StandardTest extends BrowserTestBase {
       $filter->removeFilter('editor_file_reference');
       $filter->save();
     }
-    \Drupal::service('module_installer')->uninstall(['editor', 'ckeditor']);
+    \Drupal::service('module_installer')->uninstall(['editor', 'ckeditor5']);
     $this->rebuildContainer();
     \Drupal::service('module_installer')->install(['editor']);
     /** @var \Drupal\contact\ContactFormInterface $contact_form */
@@ -172,7 +192,6 @@ class StandardTest extends BrowserTestBase {
 
     // Verify certain routes' responses are cacheable by Dynamic Page Cache, to
     // ensure these responses are very fast for authenticated users.
-    $this->dumpHeaders = TRUE;
     $this->drupalLogin($this->adminUser);
     $url = Url::fromRoute('contact.site_page');
     $this->drupalGet($url);
@@ -244,8 +263,9 @@ class StandardTest extends BrowserTestBase {
       // The name field should be hidden.
       $assert_session->fieldNotExists('Name', $form);
       // The source field should be shown before the vertical tabs.
-      $test_source_field = $assert_session->fieldExists($media_type->getSource()->getSourceFieldDefinition($media_type)->getLabel(), $form)->getOuterHtml();
-      $vertical_tabs = $assert_session->elementExists('css', '.form-type-vertical-tabs', $form)->getOuterHtml();
+      $source_field_label = $media_type->getSource()->getSourceFieldDefinition($media_type)->getLabel();
+      $test_source_field = $assert_session->elementExists('xpath', "//*[contains(text(), '$source_field_label')]", $form)->getOuterHtml();
+      $vertical_tabs = $assert_session->elementExists('css', '.js-form-type-vertical-tabs', $form)->getOuterHtml();
       $this->assertGreaterThan(strpos($form_html, $test_source_field), strpos($form_html, $vertical_tabs));
       // The "Published" checkbox should be the last element.
       $date_field = $assert_session->fieldExists('Date', $form)->getOuterHtml();

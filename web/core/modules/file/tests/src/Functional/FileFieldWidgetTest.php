@@ -33,7 +33,7 @@ class FileFieldWidgetTest extends FileFieldTestBase {
   /**
    * {@inheritdoc}
    */
-  protected $defaultTheme = 'classy';
+  protected $defaultTheme = 'stark';
 
   /**
    * {@inheritdoc}
@@ -395,23 +395,19 @@ class FileFieldWidgetTest extends FileFieldTestBase {
     $html_name = str_replace('_', '-', $field_name);
     $this->createFileField($field_name, 'node', 'article', ['cardinality' => FieldStorageConfig::CARDINALITY_UNLIMITED]);
     $file = $this->getTestFile('text');
-    $xpath = "//details[@data-drupal-selector='edit-$html_name']/div[@class='details-wrapper']/table";
+    $xpath = "//details[@data-drupal-selector='edit-$html_name']/table";
 
     $this->drupalGet('node/add/article');
 
-    $elements = $this->xpath($xpath);
-
     // If the field has no item, the table should not be visible.
-    $this->assertCount(0, $elements);
+    $this->assertSession()->elementNotExists('xpath', $xpath);
 
     // Upload a file.
     $edit['files[' . $field_name . '_0][]'] = $this->container->get('file_system')->realpath($file->getFileUri());
     $this->submitForm($edit, "{$field_name}_0_upload_button");
 
-    $elements = $this->xpath($xpath);
-
     // If the field has at least one item, the table should be visible.
-    $this->assertCount(1, $elements);
+    $this->assertSession()->elementsCount('xpath', $xpath, 1);
 
     // Test for AJAX error when using progress bar on file field widget.
     $http_client = $this->getHttpClient();

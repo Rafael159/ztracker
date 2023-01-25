@@ -223,6 +223,7 @@ class HtmlRenderer implements MainContentRendererInterface {
       $event = new PageDisplayVariantSelectionEvent('simple_page', $route_match);
       $this->eventDispatcher->dispatch($event, RenderEvents::SELECT_PAGE_DISPLAY_VARIANT);
       $variant_id = $event->getPluginId();
+      $variant_configuration = $event->getPluginConfiguration();
 
       // We must render the main content now already, because it might provide a
       // title. We set its $is_root_call parameter to FALSE, to ensure
@@ -248,15 +249,14 @@ class HtmlRenderer implements MainContentRendererInterface {
       $title = $get_title($main_content);
 
       // Instantiate the page display, and give it the main content.
-      $page_display = $this->displayVariantManager->createInstance($variant_id);
+      $page_display = $this->displayVariantManager->createInstance($variant_id, $variant_configuration);
       if (!$page_display instanceof PageVariantInterface) {
         throw new \LogicException('Cannot render the main content for this page because the provided display variant does not implement PageVariantInterface.');
       }
       $page_display
         ->setMainContent($main_content)
         ->setTitle($title)
-        ->addCacheableDependency($event)
-        ->setConfiguration($event->getPluginConfiguration());
+        ->addCacheableDependency($event);
       // Some display variants need to be passed an array of contexts with
       // values because they can't get all their contexts globally. For example,
       // in Page Manager, you can create a Page which has a specific static
@@ -307,10 +307,12 @@ class HtmlRenderer implements MainContentRendererInterface {
   public function invokePageAttachmentHooks(array &$page) {
     // Modules can add attachments.
     $attachments = [];
-    foreach ($this->moduleHandler->getImplementations('page_attachments') as $module) {
-      $function = $module . '_page_attachments';
-      $function($attachments);
-    }
+    $this->moduleHandler->invokeAllWith(
+      'page_attachments',
+      function (callable $hook, string $module) use (&$attachments) {
+        $hook($attachments);
+      }
+    );
     if (array_diff(array_keys($attachments), ['#attached', '#cache']) !== []) {
       throw new \LogicException('Only #attached and #cache may be set in hook_page_attachments().');
     }
@@ -346,14 +348,18 @@ class HtmlRenderer implements MainContentRendererInterface {
     // Modules can add render arrays to the top and bottom of the page.
     $page_top = [];
     $page_bottom = [];
-    foreach ($this->moduleHandler->getImplementations('page_top') as $module) {
-      $function = $module . '_page_top';
-      $function($page_top);
-    }
-    foreach ($this->moduleHandler->getImplementations('page_bottom') as $module) {
-      $function = $module . '_page_bottom';
-      $function($page_bottom);
-    }
+    $this->moduleHandler->invokeAllWith(
+      'page_top',
+      function (callable $hook, string $module) use (&$page_top) {
+        $hook($page_top);
+      }
+    );
+    $this->moduleHandler->invokeAllWith(
+      'page_bottom',
+      function (callable $hook, string $module) use (&$page_bottom) {
+        $hook($page_bottom);
+      }
+    );
     if (!empty($page_top)) {
       $html['page_top'] = $page_top;
     }

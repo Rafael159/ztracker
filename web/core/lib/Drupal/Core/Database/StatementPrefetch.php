@@ -5,8 +5,9 @@ namespace Drupal\Core\Database;
 /**
  * An implementation of StatementInterface that prefetches all data.
  *
- * This class behaves very similar to a \PDOStatement but as it always fetches
- * every row it is possible to manipulate those results.
+ * This class behaves very similar to a StatementWrapper of a \PDOStatement
+ * but as it always fetches every row it is possible to manipulate those
+ * results.
  */
 class StatementPrefetch implements \Iterator, StatementInterface {
 
@@ -224,7 +225,7 @@ class StatementPrefetch implements \Iterator, StatementInterface {
     // as soon as possible.
     $this->data = $statement->fetchAll(\PDO::FETCH_ASSOC);
     // Destroy the statement as soon as possible. See the documentation of
-    // \Drupal\Core\Database\Driver\sqlite\Statement for an explanation.
+    // \Drupal\sqlite\Driver\Database\sqlite\Statement for an explanation.
     unset($statement);
 
     $this->resultRowCount = count($this->data);

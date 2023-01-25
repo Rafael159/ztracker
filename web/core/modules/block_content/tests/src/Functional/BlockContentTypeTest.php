@@ -44,6 +44,9 @@ class BlockContentTypeTest extends BlockContentTestBase {
    */
   protected $autoCreateBasicBlockType = FALSE;
 
+  /**
+   * {@inheritdoc}
+   */
   protected function setUp(): void {
     parent::setUp();
 
@@ -204,30 +207,23 @@ class BlockContentTypeTest extends BlockContentTestBase {
       ->getStorage('block_content');
 
     // Install all themes.
-    \Drupal::service('theme_installer')->install(['bartik', 'seven', 'stark']);
+    $themes = ['olivero', 'stark', 'claro'];
+    \Drupal::service('theme_installer')->install($themes);
     $theme_settings = $this->config('system.theme');
-    foreach (['bartik', 'seven', 'stark'] as $default_theme) {
+    foreach ($themes as $default_theme) {
       // Change the default theme.
       $theme_settings->set('default', $default_theme)->save();
       $this->drupalPlaceBlock('local_actions_block');
 
       // For each installed theme, go to its block page and test the redirects.
-      foreach (['bartik', 'seven', 'stark'] as $theme) {
+      foreach ($themes as $theme) {
         // Test that adding a block from the 'place blocks' form sends you to the
         // block configure form.
         $path = $theme == $default_theme ? 'admin/structure/block' : "admin/structure/block/list/$theme";
         $this->drupalGet($path);
         $this->clickLink('Place block');
         $this->clickLink('Add custom block');
-        // The seven theme has markup inside the link, we cannot use clickLink().
-        if ($default_theme == 'seven') {
-          $options = $theme != $default_theme ? ['query' => ['theme' => $theme]] : [];
-          $this->assertSession()->linkByHrefExists(Url::fromRoute('block_content.add_form', ['block_content_type' => 'foo'], $options)->toString());
-          $this->drupalGet('block/add/foo', $options);
-        }
-        else {
-          $this->clickLink('foo');
-        }
+        $this->clickLink('foo');
         // Create a new block.
         $edit = ['info[0][value]' => $this->randomMachineName(8)];
         $this->submitForm($edit, 'Save');

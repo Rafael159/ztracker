@@ -15,7 +15,7 @@ class CommentStatisticsUnitTest extends UnitTestCase {
   /**
    * Mock statement.
    *
-   * @var \Drupal\Core\Database\Statement
+   * @var \Drupal\Core\Database\StatementInterface
    */
   protected $statement;
 
@@ -51,7 +51,7 @@ class CommentStatisticsUnitTest extends UnitTestCase {
    * Sets up required mocks and the CommentStatistics service under test.
    */
   protected function setUp(): void {
-    $this->statement = $this->getMockBuilder('Drupal\Core\Database\Driver\sqlite\Statement')
+    $this->statement = $this->getMockBuilder('Drupal\sqlite\Driver\Database\sqlite\Statement')
       ->disableOriginalConstructor()
       ->getMock();
 
@@ -73,7 +73,7 @@ class CommentStatisticsUnitTest extends UnitTestCase {
 
     $this->select->expects($this->any())
       ->method('execute')
-      ->will($this->returnValue($this->statement));
+      ->willReturn($this->statement);
 
     $this->database = $this->getMockBuilder('Drupal\Core\Database\Connection')
       ->disableOriginalConstructor()
@@ -81,7 +81,7 @@ class CommentStatisticsUnitTest extends UnitTestCase {
 
     $this->database->expects($this->once())
       ->method('select')
-      ->will($this->returnValue($this->select));
+      ->willReturn($this->select);
 
     $this->commentStatistics = new CommentStatistics($this->database, $this->createMock('Drupal\Core\Session\AccountInterface'), $this->createMock(EntityTypeManagerInterface::class), $this->createMock('Drupal\Core\State\StateInterface'), $this->database);
   }

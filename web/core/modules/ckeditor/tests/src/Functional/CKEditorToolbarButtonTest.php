@@ -11,6 +11,7 @@ use Drupal\Component\Serialization\Json;
  * Tests CKEditor toolbar buttons when the language direction is RTL.
  *
  * @group ckeditor
+ * @group legacy
  */
 class CKEditorToolbarButtonTest extends BrowserTestBase {
 
@@ -25,6 +26,13 @@ class CKEditorToolbarButtonTest extends BrowserTestBase {
    * {@inheritdoc}
    */
   protected $defaultTheme = 'stark';
+
+  /**
+   * The admin user.
+   *
+   * @var \Drupal\user\Entity\User
+   */
+  protected $adminUser;
 
   /**
    * {@inheritdoc}
@@ -45,7 +53,7 @@ class CKEditorToolbarButtonTest extends BrowserTestBase {
     ])->save();
 
     // Create a new user with admin rights.
-    $this->admin_user = $this->drupalCreateUser([
+    $this->adminUser = $this->drupalCreateUser([
       'administer languages',
       'access administration pages',
       'administer site configuration',
@@ -57,7 +65,7 @@ class CKEditorToolbarButtonTest extends BrowserTestBase {
    * Method tests CKEditor image buttons.
    */
   public function testImageButtonDisplay() {
-    $this->drupalLogin($this->admin_user);
+    $this->drupalLogin($this->adminUser);
 
     // Install the Arabic language (which is RTL) and configure as the default.
     $edit = [];

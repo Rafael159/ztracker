@@ -33,6 +33,11 @@ class LanguageManager implements LanguageManagerInterface {
   protected $defaultLanguage;
 
   /**
+   * Information about all defined language types.
+   */
+  protected $definedLanguageTypesInfo;
+
+  /**
    * Constructs the language manager.
    *
    * @param \Drupal\Core\Language\LanguageDefault $default_language
@@ -215,7 +220,7 @@ class LanguageManager implements LanguageManagerInterface {
    * {@inheritdoc}
    */
   public function getLanguageSwitchLinks($type, Url $url) {
-    return [];
+    return NULL;
   }
 
   /**

@@ -27,8 +27,11 @@ class BlockHiddenRegionTest extends BrowserTestBase {
   /**
    * {@inheritdoc}
    */
-  protected $defaultTheme = 'classy';
+  protected $defaultTheme = 'stark';
 
+  /**
+   * {@inheritdoc}
+   */
   protected function setUp(): void {
     parent::setUp();
 
@@ -37,8 +40,7 @@ class BlockHiddenRegionTest extends BrowserTestBase {
       'administer blocks',
       'administer themes',
       'search content',
-      ]
-    );
+    ]);
 
     $this->drupalLogin($this->adminUser);
     $this->drupalPlaceBlock('search_form_block');

@@ -15,7 +15,7 @@ class NodeAdminTest extends NodeTestBase {
   /**
    * {@inheritdoc}
    */
-  protected $defaultTheme = 'classy';
+  protected $defaultTheme = 'stark';
 
   /**
    * A user with permission to bypass access content.
@@ -52,6 +52,9 @@ class NodeAdminTest extends NodeTestBase {
    */
   protected static $modules = ['views'];
 
+  /**
+   * {@inheritdoc}
+   */
   protected function setUp(): void {
     parent::setUp();
 
@@ -104,8 +107,7 @@ class NodeAdminTest extends NodeTestBase {
     $this->drupalGet('admin/content');
     foreach ($nodes_query as $delta => $string) {
       // Verify that the node was found in the correct order.
-      $this->assertSession()->elementExists('xpath', $this->assertSession()->buildXPathQuery('//table[contains(@class, :class)]/tbody/tr[' . ($delta + 1) . ']/td[2]/a[normalize-space(text())=:label]', [
-        ':class' => 'views-table',
+      $this->assertSession()->elementExists('xpath', $this->assertSession()->buildXPathQuery('//table/tbody/tr[' . ($delta + 1) . ']/td[2]/a[normalize-space(text())=:label]', [
         ':label' => $string,
       ]));
     }
@@ -121,8 +123,7 @@ class NodeAdminTest extends NodeTestBase {
     $this->drupalGet('admin/content', ['query' => ['sort' => 'asc', 'order' => 'title']]);
     foreach ($nodes_query as $delta => $string) {
       // Verify that the node was found in the correct order.
-      $this->assertSession()->elementExists('xpath', $this->assertSession()->buildXPathQuery('//table[contains(@class, :class)]/tbody/tr[' . ($delta + 1) . ']/td[2]/a[normalize-space(text())=:label]', [
-        ':class' => 'views-table',
+      $this->assertSession()->elementExists('xpath', $this->assertSession()->buildXPathQuery('//table/tbody/tr[' . ($delta + 1) . ']/td[2]/a[normalize-space(text())=:label]', [
         ':label' => $string,
       ]));
     }

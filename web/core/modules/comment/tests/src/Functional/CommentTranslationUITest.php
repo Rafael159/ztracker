@@ -62,9 +62,11 @@ class CommentTranslationUITest extends ContentTranslationUITestBase {
     'comment',
   ];
 
+  /**
+   * {@inheritdoc}
+   */
   protected function setUp(): void {
     $this->entityTypeId = 'comment';
-    $this->nodeBundle = 'article';
     $this->bundle = 'comment_article';
     $this->testLanguageSelector = FALSE;
     $this->subject = $this->randomMachineName();
@@ -76,7 +78,7 @@ class CommentTranslationUITest extends ContentTranslationUITestBase {
    */
   public function setupBundle() {
     parent::setupBundle();
-    $this->drupalCreateContentType(['type' => $this->nodeBundle, 'name' => $this->nodeBundle]);
+    $this->drupalCreateContentType(['type' => 'article', 'name' => 'article']);
     // Add a comment field to the article content type.
     $this->addDefaultCommentField('node', 'article', 'comment_article', CommentItemInterface::OPEN, 'comment_article');
     // Create a page content type.

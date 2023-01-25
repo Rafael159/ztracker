@@ -52,20 +52,12 @@ class ForumListingBreadcrumbBuilderTest extends UnitTestCase {
     $translation_manager = $this->createMock('Drupal\Core\StringTranslation\TranslationInterface');
 
     // Make an object to test.
-    $builder = $this->getMockBuilder('Drupal\forum\Breadcrumb\ForumListingBreadcrumbBuilder')
-      ->setConstructorArgs([
-        $entity_type_manager,
-        $config_factory,
-        $forum_manager,
-        $translation_manager,
-      ])
-      ->onlyMethods([])
-      ->getMock();
+    $builder = new ForumListingBreadcrumbBuilder($entity_type_manager, $config_factory, $forum_manager, $translation_manager);
 
     $route_match = $this->createMock('Drupal\Core\Routing\RouteMatchInterface');
     $route_match->expects($this->once())
       ->method('getRouteName')
-      ->will($this->returnValue($route_name));
+      ->willReturn($route_name);
     $route_match->expects($this->any())
       ->method('getParameter')
       ->willReturnMap($parameter_map);
@@ -204,7 +196,7 @@ class ForumListingBreadcrumbBuilderTest extends UnitTestCase {
     $route_match->expects($this->exactly(2))
       ->method('getParameter')
       ->with('taxonomy_term')
-      ->will($this->returnValue($forum_listing));
+      ->willReturn($forum_listing);
 
     // First test.
     $expected1 = [

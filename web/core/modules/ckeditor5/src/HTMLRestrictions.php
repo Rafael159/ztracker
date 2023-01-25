@@ -9,6 +9,7 @@ use Drupal\Component\Utility\DiffArray;
 use Drupal\filter\FilterFormatInterface;
 use Drupal\filter\Plugin\Filter\FilterHtml;
 use Drupal\filter\Plugin\FilterInterface;
+use Masterminds\HTML5\Elements;
 
 /**
  * Represents a set of HTML restrictions.
@@ -36,9 +37,6 @@ use Drupal\filter\Plugin\FilterInterface;
  * attributes or attribute values on. For example: alignment.
  *
  * @see ::WILDCARD_ELEMENT_METHODS
- *
- * NOTE: Currently only supports the 'allowed' portion.
- * @todo Add support for "forbidden" tags in https://www.drupal.org/project/drupal/issues/3231336
  *
  * @internal
  */
@@ -69,6 +67,7 @@ final class HTMLRestrictions {
    * @var string[]
    */
   private const WILDCARD_ELEMENT_METHODS = [
+    '$any-html5-element' => 'getHtml5ElementList',
     '$text-container' => 'getTextContainerElementList',
   ];
 
@@ -85,7 +84,54 @@ final class HTMLRestrictions {
     self::validateAllowedRestrictionsPhase2($elements);
     self::validateAllowedRestrictionsPhase3($elements);
     self::validateAllowedRestrictionsPhase4($elements);
+    self::validateAllowedRestrictionsPhase5($elements);
     $this->elements = $elements;
+
+    // Simplify based on the global attributes:
+    // - `<p dir> <* dir>` must become `<p> <* dir>`
+    // - `<p foo="b a"> <* foo="a b">` must become `<p> <* foo="a b">`
+    // - `<p foo="a b c"> <* foo="a b">` must become `<p foo="c"> <* foo="a b">`
+    // In other words: the restrictions on `<*>` remain untouched, but the
+    // attributes and attribute values allowed by `<*>` should be omitted from
+    // all other tags.
+    // Note: `<*>` also allows specifying disallowed attributes, but no other
+    // tags are allowed to do this. Consequently, simplification is only needed
+    // if >=1 allowed attribute is present on `<*>`.
+    if (count($elements) >= 2 && array_key_exists('*', $elements) && array_filter($elements['*'])) {
+      // @see \Drupal\ckeditor5\HTMLRestrictions::validateAllowedRestrictionsPhase4()
+      $globally_allowed_attribute_restrictions = array_filter($elements['*']);
+
+      // Prepare to compare the restrictions of all tags with those on the
+      // global attribute tag `<*>`.
+      $original = [];
+      $global = [];
+      foreach ($elements as $tag => $restrictions) {
+        // `<*>`'s attribute restrictions do not need to be compared.
+        if ($tag === '*') {
+          continue;
+        }
+        $original[$tag] = $restrictions;
+        $global[$tag] = $globally_allowed_attribute_restrictions;
+      }
+
+      // The subset of attribute restrictions after diffing with those on `<*>`.
+      $net_global_attribute_restrictions = (new self($original))
+        ->doDiff(new self($global))
+        ->getAllowedElements(FALSE);
+
+      // Update each tag's attribute restrictions to the subset.
+      foreach ($elements as $tag => $restrictions) {
+        // `<*>` remains untouched.
+        if ($tag === '*') {
+          continue;
+        }
+        $this->elements[$tag] = $net_global_attribute_restrictions[$tag]
+          // If the tag is absent from the subset, then its attribute
+          // restrictions were a strict subset of `<*>`: just allowing the tag
+          // without allowing attributes is then sufficient.
+          ?? FALSE;
+      }
+    }
   }
 
   /**
@@ -120,6 +166,7 @@ final class HTMLRestrictions {
       // @see https://html.spec.whatwg.org/multipage/dom.html#global-attributes
       // @see validateAllowedRestrictionsPhase2()
       // @see validateAllowedRestrictionsPhase4()
+      // @see validateAllowedRestrictionsPhase5()
       if ($html_tag_name === '*') {
         continue;
       }
@@ -149,6 +196,7 @@ final class HTMLRestrictions {
       // of a text format.
       // @see https://html.spec.whatwg.org/multipage/dom.html#global-attributes
       // @see validateAllowedRestrictionsPhase4()
+      // @see validateAllowedRestrictionsPhase5()
       if ($html_tag_name === '*' && !is_array($html_tag_restrictions)) {
         throw new \InvalidArgumentException(sprintf('The value for the special "*" global attribute HTML tag must be an array of attribute restrictions.'));
       }
@@ -227,6 +275,7 @@ final class HTMLRestrictions {
         // of a text format.
         // @see https://html.spec.whatwg.org/multipage/dom.html#global-attributes
         // @see validateAllowedRestrictionsPhase2()
+        // @see validateAllowedRestrictionsPhase5()
         if ($html_tag_name === '*' && $html_tag_attribute_restrictions === FALSE) {
           continue;
         }
@@ -236,12 +285,108 @@ final class HTMLRestrictions {
         if ($html_tag_attribute_restrictions === []) {
           throw new \InvalidArgumentException(sprintf('The "%s" HTML tag has an attribute restriction "%s" which is set to the empty array. This is not permitted, specify either TRUE to allow all attribute values, or list the attribute value restrictions.', $html_tag_name, $html_tag_attribute_name));
         }
+        if (array_key_exists('*', $html_tag_attribute_restrictions)) {
+          throw new \InvalidArgumentException(sprintf('The "%s" HTML tag has an attribute restriction "%s" with a "*" allowed attribute value. This implies all attributes values are allowed. Remove the attribute value restriction instead, or use a prefix (`*-foo`), infix (`*-foo-*`) or suffix (`foo-*`) wildcard restriction instead.', $html_tag_name, $html_tag_attribute_name));
+        }
         // @codingStandardsIgnoreLine
         if (!Inspector::assertAll(function ($v) { return $v === TRUE; }, $html_tag_attribute_restrictions)) {
           throw new \InvalidArgumentException(sprintf('The "%s" HTML tag has attribute restriction "%s", but it is not an array of key-value pairs, with HTML tag attribute values as keys and TRUE as values.', $html_tag_name, $html_tag_attribute_name));
         }
       }
     }
+  }
+
+  /**
+   * Validates allowed elements — phase 5: disallowed attribute overrides.
+   *
+   * Explicit overrides of globally disallowed attributes are considered errors.
+   * For example: `<p style>`, `<a onclick>` are considered errors when the
+   * `style` and `on*` attributes are globally disallowed.
+   *
+   * Implicit overrides are not treated as errors: if all attributes are allowed
+   * on a tag, globally disallowed attributes still apply.
+   * For example: `<p *>` allows all attributes on `<p>`, but still won't allow
+   * globally disallowed attributes.
+   *
+   * @param array $elements
+   *   The allowed elements.
+   *
+   * @throws \InvalidArgumentException
+   */
+  private static function validateAllowedRestrictionsPhase5(array $elements): void {
+    $conflict = self::findElementsOverridingGloballyDisallowedAttributes($elements);
+    if ($conflict) {
+      [$globally_disallowed_attribute_restrictions, $elements_overriding_globally_disallowed_attributes] = $conflict;
+      throw new \InvalidArgumentException(sprintf(
+        'The attribute restrictions in "%s" are allowing attributes "%s" that are disallowed by the special "*" global attribute restrictions.',
+        implode(' ', (new self($elements_overriding_globally_disallowed_attributes))->toCKEditor5ElementsArray()),
+        implode('", "', array_keys($globally_disallowed_attribute_restrictions))
+      ));
+    }
+  }
+
+  /**
+   * Finds elements overriding globally disallowed attributes.
+   *
+   * @param array $elements
+   *   The allowed elements.
+   *
+   * @return null|array
+   *   NULL if no conflict is found, an array containing otherwise, containing:
+   *   - the globally disallowed attribute restrictions
+   *   - the elements overriding globally disallowed attributes
+   */
+  private static function findElementsOverridingGloballyDisallowedAttributes(array $elements): ?array {
+    // Find the globally disallowed attributes.
+    // For example: `['*' => ['style' => FALSE, 'foo' => TRUE, 'bar' => FALSE]`
+    // has two globally disallowed attributes, the code below will extract
+    // `['*' => ['style' => FALSE, 'bar' => FALSE']]`.
+    $globally_disallowed_attribute_restrictions = !array_key_exists('*', $elements)
+      ? []
+      : array_filter($elements['*'], function ($global_attribute_restrictions): bool {
+        return $global_attribute_restrictions === FALSE;
+      });
+    if (empty($globally_disallowed_attribute_restrictions)) {
+      // No conflict possible.
+      return NULL;
+    }
+
+    // The elements which could potentially have a conflicting override.
+    $elements_with_attribute_level_restrictions = array_filter($elements, function ($attribute_restrictions, string $attribute_name): bool {
+      return is_array($attribute_restrictions) && $attribute_name !== '*';
+    }, ARRAY_FILTER_USE_BOTH);
+    if (empty($elements_with_attribute_level_restrictions)) {
+      // No conflict possible.
+      return NULL;
+    }
+
+    // Construct a HTMLRestrictions object containing just the elements that are
+    // potentially overriding globally disallowed attributes.
+    // For example: `['p' => ['style' => TRUE]]`.
+    $potentially_overriding = new self($elements_with_attribute_level_restrictions);
+
+    // Construct a HTMLRestrictions object that contains the globally disallowed
+    // attribute restrictions, but pretends they are allowed. This allows using
+    // ::intersect() to detect a conflict.
+    $conflicting_restrictions = new self(array_fill_keys(
+      array_keys($elements_with_attribute_level_restrictions),
+      // The disallowed attributes converted to allowed, to allow using the
+      // ::intersect() method to detect a conflict.
+      // In the example: `['style' => TRUE', 'bar' => TRUE]`.
+      array_fill_keys(array_keys($globally_disallowed_attribute_restrictions), TRUE)
+    ));
+
+    // When there is a non-empty intersection at the attribute level, an
+    // override of a globally disallowed attribute was found.
+    $conflict = $potentially_overriding->intersect($conflicting_restrictions);
+    $elements_overriding_globally_disallowed_attributes = array_filter($conflict->getAllowedElements());
+
+    // No conflict found.
+    if (empty($elements_overriding_globally_disallowed_attributes)) {
+      return NULL;
+    }
+
+    return [$globally_disallowed_attribute_restrictions, $elements_overriding_globally_disallowed_attributes];
   }
 
   /**
@@ -306,7 +451,6 @@ final class HTMLRestrictions {
    * @return \Drupal\ckeditor5\HTMLRestrictions
    */
   private static function unrestricted(): self {
-    // @todo Refine in https://www.drupal.org/project/drupal/issues/3231336, including adding support for all operations.
     $restrictions = HTMLRestrictions::emptySet();
     $restrictions->unrestricted = TRUE;
     return $restrictions;
@@ -335,20 +479,47 @@ final class HTMLRestrictions {
       throw new \InvalidArgumentException();
     }
 
-    if ($object->getHtmlRestrictions() === FALSE) {
-      // @todo Refine in https://www.drupal.org/project/drupal/issues/3231336
+    $restrictions = $object->getHTMLRestrictions();
+    if ($restrictions === FALSE || $restrictions === []) {
       return self::unrestricted();
     }
 
-    $restrictions = $object->getHTMLRestrictions();
-    if (!isset($restrictions['allowed'])) {
-      // @todo Handle HTML restrictor filters that only set forbidden_tags
-      //   https://www.drupal.org/project/ckeditor5/issues/3231336.
-      throw new \DomainException('text formats with only filters that forbid tags rather than allowing tags are not yet supported.');
+    // When allowing all tags on an attribute, transform FilterHtml output from
+    // ['tag' => ['*'=> TRUE]] to ['tag' => TRUE]
+    $allowed = $restrictions['allowed'];
+    foreach ($allowed as $element => $attributes) {
+      if (is_array($attributes) && isset($attributes['*']) && $attributes['*'] === TRUE) {
+        $allowed[$element] = TRUE;
+      }
     }
 
-    $allowed = $restrictions['allowed'];
-
+    // FilterHtml accepts configuration for `allowed_html` that it will not
+    // actually apply. In other words: it allows for meaningless configuration.
+    // HTMLRestrictions strictly forbids tags overriding globally disallowed
+    // attributes; it considers these conflicting statements. Since FilterHtml
+    // will not apply these anyway, remove them from $allowed prior to
+    // constructing a HTMLRestrictions object:
+    // - `<tag style foo>` will become `<tag foo>` since the `style` attribute
+    //   is globally disallowed by FilterHtml
+    // - `<tag bar on*>` will become `<tag bar>` since the `on*` attribute is
+    //   globally disallowed by FilterHtml
+    // - `<tag ontouch baz>` will become `<tag baz>` since the `on*` attribute
+    //   is globally disallowed by FilterHtml
+    // @see ::validateAllowedRestrictionsPhase5()
+    // @see \Drupal\filter\Plugin\Filter\FilterHtml::process()
+    // @see \Drupal\filter\Plugin\Filter\FilterHtml::getHTMLRestrictions()
+    $conflict = self::findElementsOverridingGloballyDisallowedAttributes($allowed);
+    if ($conflict) {
+      [, $elements_overriding_globally_disallowed_attributes] = $conflict;
+      foreach ($elements_overriding_globally_disallowed_attributes as $element => $attributes) {
+        foreach (array_keys($attributes) as $attribute_name) {
+          unset($allowed[$element][$attribute_name]);
+        }
+        if ($allowed[$element] === []) {
+          $allowed[$element] = FALSE;
+        }
+      }
+    }
     return new self($allowed);
   }
 
@@ -365,16 +536,16 @@ final class HTMLRestrictions {
    */
   public static function fromString(string $elements_string): HTMLRestrictions {
     // Preprocess wildcard tags: convert `<$text-container>` to
-    // `<__preprocessed-wildcard-text-container__>` and `<*>` to
-    // `<__preprocessed-global-attribute__>`.
+    // `<preprocessed-wildcard-text-container__>` and `<*>` to
+    // `<preprocessed-global-attribute__>`.
     // Note: unknown wildcard tags will trigger a validation error in
     // ::validateAllowedRestrictionsPhase1().
     $replaced_wildcard_tags = [];
     $elements_string = preg_replace_callback('/<(\$[a-z][0-9a-z\-]*|\*)/', function ($matches) use (&$replaced_wildcard_tags) {
       $wildcard_tag_name = $matches[1];
       $replacement = $wildcard_tag_name === '*'
-        ? '__preprocessed-global-attribute__'
-        : sprintf("__preprocessed-wildcard-%s__", substr($wildcard_tag_name, 1));
+        ? 'preprocessed-global-attribute__'
+        : sprintf("preprocessed-wildcard-%s__", substr($wildcard_tag_name, 1));
       $replaced_wildcard_tags[$replacement] = $wildcard_tag_name;
       return "<$replacement";
     }, $elements_string);
@@ -391,11 +562,19 @@ final class HTMLRestrictions {
     unset($allowed_elements['__zqh6vxfbk3cg__']);
 
     // Postprocess tag wildcards: convert
-    // `<__preprocessed-wildcard-text-container__>` to `<$text-container>`.
+    // `<preprocessed-wildcard-text-container__>` to `<$text-container>`.
     foreach ($replaced_wildcard_tags as $processed => $original) {
       if (isset($allowed_elements[$processed])) {
         $allowed_elements[$original] = $allowed_elements[$processed];
         unset($allowed_elements[$processed]);
+      }
+    }
+
+    // When allowing all tags on an attribute, transform FilterHtml output from
+    // ['tag' => ['*'=> TRUE]] to ['tag' => TRUE]
+    foreach ($allowed_elements as $element => $attributes) {
+      if (is_array($attributes) && isset($attributes['*']) && $attributes['*'] === TRUE) {
+        $allowed_elements[$element] = TRUE;
       }
     }
 
@@ -477,7 +656,8 @@ final class HTMLRestrictions {
           return FALSE;
         }
         // Both objects have lists of allowed attributes: keep the DiffArray
-        // result.
+        // result and apply postprocessing after this array_filter() call,
+        // because this can only affect tag-level differences.
         // @see ::validateAllowedRestrictionsPhase3()
         assert(is_array($other->elements[$tag]));
         return TRUE;
@@ -485,17 +665,22 @@ final class HTMLRestrictions {
       ARRAY_FILTER_USE_BOTH
     );
 
-    // Special case: wildcard attributes, and the ability to define restrictions
-    // for all concrete attributes matching them using:
-    // - prefix wildcard, f.e. `data-*`, to match `data-foo`, `data-bar`, etc.
-    // - infix wildcard, f.e. `*-entity-*`
-    // - suffix wildcard, f.e. `foo-*`
+    // Attribute-level postprocessing for two special cases:
+    // - wildcard attribute names
+    // - per attribute name: attribute value restrictions in $this vs all values
+    //   allowed in $other
     foreach ($diff_elements as $tag => $tag_config) {
       // If there are no per-attribute restrictions for this tag in either
-      // operand, then no wildcard attribute postprocessing is needed.
-      if (!(isset($other->elements[$tag]) && is_array($other->elements[$tag]))) {
+      // operand, then no postprocessing is needed.
+      if (!is_array($tag_config) || !(isset($other->elements[$tag]) && is_array($other->elements[$tag]))) {
         continue;
       }
+
+      // Special case: wildcard attributes, and the ability to define
+      // restrictions for all concrete attributes matching them using:
+      // - prefix wildcard, f.e. `*-foo`
+      // - infix wildcard, f.e. `*-entity-*`
+      // - suffix wildcard, f.e. `data-*`, to match `data-foo`, `data-bar`, etc.
       $wildcard_attributes = array_filter(array_keys($other->elements[$tag]), [__CLASS__, 'isWildcardAttributeName']);
       foreach ($wildcard_attributes as $wildcard_attribute_name) {
         $regex = self::getRegExForWildCardAttributeName($wildcard_attribute_name);
@@ -509,13 +694,22 @@ final class HTMLRestrictions {
             unset($tag_config[$html_tag_attribute_name]);
           }
         }
+      }
 
-        if ($tag_config !== []) {
-          $diff_elements[$tag] = $tag_config;
+      // Attribute value restrictions in $this, all values allowed in $other.
+      foreach ($tag_config as $html_tag_attribute_name => $html_tag_attribute_restrictions) {
+        if (is_array($html_tag_attribute_restrictions) && isset($other->elements[$tag][$html_tag_attribute_name]) && $other->elements[$tag][$html_tag_attribute_name] === TRUE) {
+          unset($tag_config[$html_tag_attribute_name]);
         }
-        else {
-          unset($diff_elements[$tag]);
-        }
+      }
+
+      // Ensure $diff_elements continues to be structured in a way that is valid
+      // for a HTMLRestrictions object to be constructed from it.
+      if ($tag_config !== []) {
+        $diff_elements[$tag] = $tag_config;
+      }
+      else {
+        unset($diff_elements[$tag]);
       }
     }
 
@@ -631,9 +825,9 @@ final class HTMLRestrictions {
 
     // Special case: wildcard attributes, and the ability to define restrictions
     // for all concrete attributes matching them using:
-    // - prefix wildcard, f.e. `data-*`, to match `data-foo`, `data-bar`, etc.
+    // - prefix wildcard, f.e. `*-foo`
     // - infix wildcard, f.e. `*-entity-*`
-    // - suffix wildcard, f.e. `foo-*`
+    // - suffix wildcard, f.e. `data-*`, to match `data-foo`, `data-bar`, etc.
     foreach ($intersection as $tag => $tag_config) {
       // If there are no per-attribute restrictions for this tag in either
       // operand, then no wildcard attribute postprocessing is needed.
@@ -679,6 +873,70 @@ final class HTMLRestrictions {
   }
 
   /**
+   * Merge arrays of allowed elements according to HTMLRestrictions rules.
+   *
+   * @param array $array1
+   *   The first array of allowed elements.
+   * @param array $array2
+   *   The second array of allowed elements.
+   *
+   * @return array
+   *   Merged array of allowed elements.
+   */
+  private static function mergeAllowedElementsLevel(array $array1, array $array2): array {
+    $union = [];
+    $array1_keys = array_keys($array1);
+    $array2_keys = array_keys($array2);
+    $common_keys = array_intersect($array1_keys, $array2_keys);
+    if (count($common_keys) === 0) {
+      // There are no keys in common, simply append the arrays.
+      $union = $array1 + $array2;
+    }
+    else {
+      // For all the distinct keys, append them to the result.
+      $filter_keys = array_flip($common_keys);
+      // Add all unique keys from $array1.
+      $union += array_diff_key($array1, $filter_keys);
+      // Add all unique keys from $array2.
+      $union += array_diff_key($array2, $filter_keys);
+
+      // There are some keys in common that need to be merged.
+      foreach ($common_keys as $key) {
+        $value1 = $array1[$key];
+        $value2 = $array2[$key];
+        $value1_is_bool = is_bool($value1);
+        $value2_is_bool = is_bool($value2);
+
+        // When both values are boolean, combine the two.
+        if ($value1_is_bool && $value2_is_bool) {
+          $union[$key] = $value1 || $value2;
+        }
+        // When only one value is a boolean, take the most permissive result:
+        // - when the value it TRUE, keep TRUE as it is the most permissive
+        // - when the value is FALSE, take the other value.
+        elseif ($value1_is_bool) {
+          $union[$key] = $value1 ?: $value2;
+        }
+        elseif ($value2_is_bool) {
+          $union[$key] = $value2 ?: $value1;
+        }
+        // Process nested arrays, in this case it correspond to tag attributes
+        // configuration.
+        elseif (is_array($value1) && is_array($value2)) {
+          $union[$key] = self::mergeAllowedElementsLevel($value1, $value2);
+        }
+      }
+    }
+    // Make sure the order of the union array matches the order of the keys in
+    // the arrays provided.
+    $ordered = [];
+    foreach (array_merge($array1_keys, $array2_keys) as $key) {
+      $ordered[$key] = $union[$key];
+    }
+    return $ordered;
+  }
+
+  /**
    * Computes set union of two HTML restrictions, with wildcard support.
    *
    * @param \Drupal\ckeditor5\HTMLRestrictions $other
@@ -689,109 +947,13 @@ final class HTMLRestrictions {
    *   are either allowed in $this or in $other.
    */
   public function merge(HTMLRestrictions $other): HTMLRestrictions {
-    $union = array_merge_recursive($this->elements, $other->elements);
-    // When recursively merging elements arrays, unkeyed boolean values can
-    // appear in attribute config arrays. This removes them.
-    foreach ($union as $tag => $tag_config) {
-      if (is_array($tag_config)) {
-        // If the HTML tag restrictions for both operands were both booleans,
-        // then the result of array_merge_recursive() is an array containing two
-        // booleans (because it is designed for arrays, not for also merging
-        // booleans) under the first two numeric keys: 0 and 1. This does not
-        // match the structure expected of HTML restrictions. Combine the two
-        // booleans.
-        if (array_key_exists(0, $tag_config) && array_key_exists(1, $tag_config) && is_bool($tag_config[0]) && is_bool($tag_config[1])) {
-          // Twice FALSE.
-          if ($tag_config === [FALSE, FALSE]) {
-            $union[$tag] = FALSE;
-          }
-          // Once or twice TRUE.
-          else {
-            $union[$tag] = TRUE;
-          }
-          continue;
-        }
-
-        // If the HTML tag restrictions for only one of the two operands was a
-        // boolean, then the result of array_merge_recursive() is an array
-        // containing the complete contents of the non-boolean operand plus an
-        // additional key-value pair with the first numeric key: 0.
-        if (array_key_exists(0, $tag_config)) {
-          // If the boolean was FALSE (meaning: "no attributes allowed"), then
-          // the other operand's values should be used in an union: this yields
-          // the most permissive result.
-          if ($tag_config[0] === FALSE) {
-            unset($union[$tag][0]);
-          }
-          // If the boolean was TRUE (meaning: "all attributes allowed"), then
-          // the other operand's values should be ignored in an union: this
-          // yields the most permissive result.
-          elseif ($tag_config[0] === TRUE) {
-            $union[$tag] = TRUE;
-          }
-          continue;
-        }
-
-        // If the HTML tag restrictions are arrays for both operands, similar
-        // logic needs to be applied to the attribute-level restrictions.
-        foreach ($tag_config as $html_tag_attribute_name => $html_tag_attribute_restrictions) {
-          if (is_bool($html_tag_attribute_restrictions)) {
-            continue;
-          }
-
-          if (array_key_exists(0, $html_tag_attribute_restrictions)) {
-            // Special case: the global attribute `*` HTML tag.
-            // @see https://html.spec.whatwg.org/multipage/dom.html#global-attributes
-            // @see validateAllowedRestrictionsPhase2()
-            // @see validateAllowedRestrictionsPhase4()
-            if ($tag === '*') {
-              assert(is_bool($html_tag_attribute_restrictions[0]) || is_bool($html_tag_attribute_restrictions[1]));
-              // When both are boolean, pick the most permissive value.
-              if (is_bool($html_tag_attribute_restrictions[0]) && isset($html_tag_attribute_restrictions[1]) && is_bool($html_tag_attribute_restrictions[1])) {
-                $value = $html_tag_attribute_restrictions[0] || $html_tag_attribute_restrictions[1];
-              }
-              else {
-                $value = is_bool($html_tag_attribute_restrictions[0])
-                  ? $html_tag_attribute_restrictions[0]
-                  : $html_tag_attribute_restrictions[1];
-              }
-              $union[$tag][$html_tag_attribute_name] = $value;
-              continue;
-            }
-
-            // The "twice FALSE" case cannot occur for attributes, because
-            // attribute restrictions either have "TRUE" (to indicate any value
-            // is allowed for the attribute) or a list of allowed attribute
-            // values. If there is a numeric key, then one of the two operands
-            // must allow all attribute values (the "TRUE" case). Otherwise, an
-            // array merge would have happened, and no numeric key would exist.
-            // Therefore, this is always once or twice TRUE.
-            // e.g.: <foo bar> and <foo bar>, or <foo bar> and <foo bar="baz">
-            assert($html_tag_attribute_restrictions[0] === TRUE || $html_tag_attribute_restrictions[1] === TRUE);
-            $union[$tag][$html_tag_attribute_name] = TRUE;
-          }
-          else {
-            // Finally, when both operands list the same allowed attribute
-            // values, then the result provided by array_merge_recursive() for
-            // those allowed attribute values is an array containing two times
-            // `TRUE` (because it is designed for arrays, not for also merging
-            // booleans) under the first two numeric keys: 0 and 1.
-            // e.g.: <foo bar="baz qux"> merged with <foo bar="baz quux">.
-            foreach ($html_tag_attribute_restrictions as $allowed_attribute_value => $merged_result) {
-              if ($merged_result === [0 => TRUE, 1 => TRUE]) {
-                $union[$tag][$html_tag_attribute_name][$allowed_attribute_value] = TRUE;
-              }
-            }
-          }
-        }
-      }
-    }
+    $union = self::mergeAllowedElementsLevel($this->elements, $other->elements);
 
     // Special case: wildcard attributes, and the ability to define restrictions
     // for all concrete attributes matching them using:
-    // - prefix wildcard, f.e. `data-*`, to match `data-foo`, `data-bar`, etc.
+    // - prefix wildcard, f.e. `*-foo`
     // - infix wildcard, f.e. `*-entity-*`
-    // - suffix wildcard, f.e. `foo-*`
+    // - suffix wildcard, f.e. `data-*`, to match `data-foo`, `data-bar`, etc.
     foreach ($union as $tag => $tag_config) {
       // If there are no per-attribute restrictions for this tag, then no
       // wildcard attribute postprocessing is needed.
@@ -914,6 +1076,33 @@ final class HTMLRestrictions {
     return new self(array_filter($this->elements, function (string $tag_name) {
       return !self::isWildcardTag($tag_name);
     }, ARRAY_FILTER_USE_KEY));
+  }
+
+  /**
+   * Gets the subset of plain tags (no attributes) from allowed elements.
+   *
+   * @return \Drupal\ckeditor5\HTMLRestrictions
+   *   The subset of the given set of HTML restrictions.
+   */
+  public function getPlainTagsSubset(): HTMLRestrictions {
+    // This implicitly excludes wildcard tags and the global attribute `*` tag
+    // because they always have attributes specified.
+    return new self(array_filter($this->elements, function ($value) {
+      return $value === FALSE;
+    }));
+  }
+
+  /**
+   * Extracts the subset of plain tags (attributes omitted) from allowed elements.
+   *
+   * @return \Drupal\ckeditor5\HTMLRestrictions
+   *   The extracted subset of the given set of HTML restrictions.
+   */
+  public function extractPlainTagsSubset(): HTMLRestrictions {
+    // Ignore the global attribute `*` HTML tag: that is by definition not a
+    // plain tag.
+    $plain_tags = array_diff(array_keys($this->getConcreteSubset()->getAllowedElements()), ['*']);
+    return new self(array_fill_keys($plain_tags, FALSE));
   }
 
   /**
@@ -1094,7 +1283,10 @@ final class HTMLRestrictions {
           // that this class expects to the `['en', 'fr']` structure that the
           // GHS functionality in CKEditor 5 expects.
           if (is_array($value)) {
-            $value = array_keys($value);
+            // Ensure that all values are strings, this is necessary since PHP
+            // transforms the "1" string into 1 the number when it is used as
+            // an array key.
+            $value = array_map('strval', array_keys($value));
           }
           // Drupal never allows style attributes due to security concerns.
           // @see \Drupal\Component\Utility\Xss
@@ -1167,8 +1359,18 @@ final class HTMLRestrictions {
    */
   private static function getTextContainerElementList(): array {
     return [
-      'div', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'pre', 'li',
+      'div', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'pre',
     ];
+  }
+
+  /**
+   * Gets a list of all known HTML5 elements.
+   *
+   * @return string[]
+   *   An array of HTML5 element tags.
+   */
+  private static function getHtml5ElementList(): array {
+    return array_keys(Elements::$html5);
   }
 
   /**

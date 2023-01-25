@@ -13,6 +13,7 @@ use Drupal\KernelTests\KernelTestBase;
  * location.
  *
  * @group Theme
+ * @group legacy
  */
 class ConfirmClassyCopiesTest extends KernelTestBase {
 
@@ -179,7 +180,6 @@ class ConfirmClassyCopiesTest extends KernelTestBase {
             'file-managed-file.html.twig',
             'text-format-wrapper.html.twig',
             'filter-caption.html.twig',
-            'rdf-metadata.html.twig',
             'help-section.html.twig',
             'progress-bar.html.twig',
             'form-element-label.html.twig',
@@ -690,7 +690,7 @@ class ConfirmClassyCopiesTest extends KernelTestBase {
         'forum.css' => '8aad2d86dfd29818e991757581cd7ab8',
         'icons.css' => '56f623bd343b9bc7e7ac3e3e95d7f3ce',
         'image-widget.css' => '2da54829199f64a2c390930c3b0913a3',
-        'indented.css' => '48e214a106d9fede1e05aa10b4796361',
+        'indented.css' => '3f7be76cf4b5df7dca1c96a28c76b134',
         'inline-form.css' => 'cc5cbfd34511d9021a53ec693c110740',
         'item-list.css' => '1d519afe6007f4b01e00f22b0ba8bf33',
         'link.css' => '22f42d430fe458080a7739c70a2d2ea5',
@@ -714,7 +714,7 @@ class ConfirmClassyCopiesTest extends KernelTestBase {
       ],
       'js' => [
         'media_embed_ckeditor.theme.es6.js' => 'd9fa9e008aff8d4fb0401083bab0a1ad',
-        'media_embed_ckeditor.theme.js' => 'f8e192b79f25d2b61a6ff43b9733ec72',
+        'media_embed_ckeditor.theme.js' => '8abd200fde0284ff70026eb7cc8e412c',
       ],
       'images' => [
         'application-octet-stream.png' => 'fef73511632890590b5ae0a13c99e4bf',
@@ -788,7 +788,7 @@ class ConfirmClassyCopiesTest extends KernelTestBase {
         'menu-local-action.html.twig' => 'ff1dfb632b6235a304146aaeaa49c3ca',
         'toolbar.html.twig' => '151657ffe8fc7c8f0d9571a8b0684294',
         'menu-local-tasks.html.twig' => '1e0112bb83f6073f6fc44a94b43dd74b',
-        'comment.html.twig' => 'f5f6371850371b2db33dacceca455b1c',
+        'comment.html.twig' => '271cebfb1c64860e0e392df3a6787ca2',
         'node.html.twig' => '68ce2322607c5a258bd64cb78f49b0e0',
         'taxonomy-term.html.twig' => '63e39620cd877c85297914fef61930de',
         'media-embed-error.html.twig' => '83621141a91e525cd4df15c1d93b58b2',
@@ -842,10 +842,10 @@ class ConfirmClassyCopiesTest extends KernelTestBase {
         'views-view-grid.html.twig' => '8f4ea66bf949530d31a79a44f3d87650',
         'views-view-rss.html.twig' => 'f4e49d0d8df01019245c51ff2a4259c2',
         'block--system-branding-block.html.twig' => '558d83af4c06e78f46790e0e18295588',
-        'block--search-form-block.html.twig' => '7fef4c274e4487ba887fdeaa41acb5ca',
-        'block.html.twig' => '9b68163e596c63921119ff8f20c6f157',
+        'block--search-form-block.html.twig' => '4e9d433b954dcea12b307f9edcbbe764',
+        'block.html.twig' => 'c1bce6c31368c08f6f93c687e872f055',
         'block--local-actions-block.html.twig' => '6afe8adb14d3f37ec374400fecd5b809',
-        'block--system-menu-block.html.twig' => '242f41ff8a0f71bbccece61bf8e29e2f',
+        'block--system-menu-block.html.twig' => '084931fef1422cf11a38170702677b0f',
         'block--local-tasks-block.html.twig' => 'd462897ef5c9b6935ce801de122bce30',
       ],
     ];
