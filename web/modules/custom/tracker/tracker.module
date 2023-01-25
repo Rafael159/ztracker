@@ -1,0 +1,19 @@
+<?php
+
+/**
+ * @file
+ * Contains functions for tracker.module.
+ */
+
+/**
+ * Implements hook_page_attachments().
+ *
+ * @param array $page
+ */
+function tracker_page_attachments(array &$page) {
+  if (!\Drupal::currentUser()->hasPermission('administer tracker performance')) {
+    return;
+  }
+
+  $page['#attached']['library'][] = 'tracker/tracker.menu';
+}
