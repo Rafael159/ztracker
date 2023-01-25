@@ -1,0 +1,5 @@
+tracker.menu:
+  version: 0.1
+  css:
+    state:
+      css/tracker.menu.css: { }

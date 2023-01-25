@@ -1,0 +1,18 @@
+.toolbar-icon-system-tracker {
+  background-color: #004b85 !important;
+  color: #fff!important;
+}
+.toolbar-icon-system-tracker:active,
+.toolbar-icon-system-tracker:focus,
+.toolbar-icon-system-tracker.is-active {
+  background-color: #43485f !important;
+  color: #fff !important;
+}
+
+/*.toolbar-icon-system-tracker:before {*/
+/*  background-image: url(../images/);*/
+/*}*/
+/*.toolbar-icon-system-tracker:active:before,*/
+/*.toolbar-icon-system-tracker.is-active:before {*/
+/*  background-image: url(../images/);*/
+/*}*/
