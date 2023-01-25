@@ -1,7 +1,6 @@
 const path = require('path');
 const fs = require('fs');
 const webpack = require('webpack');
-const { styles, builds } = require('@ckeditor/ckeditor5-dev-utils');
 const TerserPlugin = require('terser-webpack-plugin');
 
 function getDirectories(srcpath) {
@@ -10,7 +9,9 @@ function getDirectories(srcpath) {
     .filter((item) => fs.statSync(path.join(srcpath, item)).isDirectory());
 }
 
-module.exports = [];
+const prodPluginBuilds = [];
+const devPluginBuilds = [];
+
 // Loop through every subdirectory in ckeditor5_plugins, which should be a different
 // plugin, and build them all in ./build.
 getDirectories(path.resolve(__dirname, './js/ckeditor5_plugins')).forEach((dir) => {
@@ -55,9 +56,21 @@ getDirectories(path.resolve(__dirname, './js/ckeditor5_plugins')).forEach((dir) 
       }),
     ],
     module: {
-      rules: [{ test: /\.svg$/, use: 'raw-loader' }],
+      rules: [{ test: /\.svg$/, type: 'asset/source' }],
     },
   };
 
-  module.exports.push(bc);
+  const dev = {...bc, mode: 'development', optimization: {...bc.optimization, minimize: false}, devtool: false};
+
+  prodPluginBuilds.push(bc);
+  devPluginBuilds.push(dev);
 });
+
+module.exports = (env, argv) => {
+  // Files aren't minified in build with the development flag.
+  if (argv.mode === 'development') {
+    return devPluginBuilds;
+  } else {
+    return prodPluginBuilds;
+  }
+}

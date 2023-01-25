@@ -3,7 +3,7 @@
 namespace Drupal\Tests\migrate\Kernel;
 
 use Drupal\Core\Cache\MemoryCounterBackendFactory;
-use Drupal\Core\Database\Driver\sqlite\Connection;
+use Drupal\sqlite\Driver\Database\sqlite\Connection;
 use Drupal\Core\DependencyInjection\ContainerBuilder;
 
 /**
@@ -26,7 +26,7 @@ abstract class MigrateSqlSourceTestBase extends MigrateSourceTestBase {
    *   The source data, keyed by table name. Each table is an array containing
    *   the rows in that table.
    *
-   * @return \Drupal\Core\Database\Driver\sqlite\Connection
+   * @return \Drupal\sqlite\Driver\Database\sqlite\Connection
    *   The SQLite database connection.
    */
   protected function getDatabase(array $source_data) {
@@ -97,7 +97,7 @@ abstract class MigrateSqlSourceTestBase extends MigrateSourceTestBase {
     /** @var MemoryCounterBackend $cache **/
     $cache = \Drupal::cache('migrate');
     if ($expected_cache_key) {
-      // Verify the the computed cache key.
+      // Verify the computed cache key.
       $property = $reflector->getProperty('cacheKey');
       $property->setAccessible(TRUE);
       $this->assertSame($expected_cache_key, $property->getValue($plugin));

@@ -54,6 +54,9 @@ abstract class CommentTestBase extends BrowserTestBase {
    */
   protected $node;
 
+  /**
+   * {@inheritdoc}
+   */
   protected function setUp() {
     parent::setUp();
 
@@ -78,7 +81,7 @@ abstract class CommentTestBase extends BrowserTestBase {
       // permission is granted.
       'access user profiles',
       'access content',
-     ]);
+    ]);
     $this->webUser = $this->drupalCreateUser([
       'access comments',
       'post comments',
@@ -198,7 +201,7 @@ abstract class CommentTestBase extends BrowserTestBase {
    */
   public function commentExists(CommentInterface $comment = NULL, $reply = FALSE) {
     if ($comment) {
-      $comment_element = $this->cssSelect('.comment-wrapper ' . ($reply ? '.indented ' : '') . 'article#comment-' . $comment->id());
+      $comment_element = $this->cssSelect(($reply ? '.indented ' : '') . 'article#comment-' . $comment->id());
       if (empty($comment_element)) {
         return FALSE;
       }

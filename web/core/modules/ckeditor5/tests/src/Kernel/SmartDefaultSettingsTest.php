@@ -6,6 +6,7 @@ namespace Drupal\Tests\ckeditor5\Kernel;
 
 use Drupal\ckeditor5\HTMLRestrictions;
 use Drupal\Component\Utility\NestedArray;
+use Drupal\Core\Entity\Entity\EntityViewMode;
 use Drupal\editor\Entity\Editor;
 use Drupal\filter\Entity\FilterFormat;
 use Drupal\KernelTests\KernelTestBase;
@@ -21,6 +22,17 @@ class SmartDefaultSettingsTest extends KernelTestBase {
 
   use SchemaCheckTestTrait;
   use CKEditor5ValidationTestTrait;
+
+  /**
+   * Exempt from strict schema checking, because using CKEditor 4.
+   *
+   * The updated Text Format & Text Editors are explicitly checked.
+   *
+   * @see \Drupal\Core\Config\Development\ConfigSchemaChecker
+   *
+   * @var bool
+   */
+  protected $strictConfigSchema = FALSE;
 
   /**
    * The manager for "CKEditor 5 plugin" plugins.
@@ -44,11 +56,16 @@ class SmartDefaultSettingsTest extends KernelTestBase {
   protected $smartDefaultSettings;
 
   /**
+   * The database connection used.
+   *
+   * @var \Drupal\Core\Database\Connection
+   */
+  protected $database;
+
+  /**
    * {@inheritdoc}
    */
   protected static $modules = [
-    'ckeditor',
-    'ckeditor_test',
     'ckeditor5',
     'editor',
     'filter',
@@ -57,8 +74,8 @@ class SmartDefaultSettingsTest extends KernelTestBase {
     'media',
     'media_library',
     'views',
-    // @todo Remove in https://www.drupal.org/project/drupal/issues/3263384
-    'ckeditor5_plugin_conditions_test',
+    'dblog',
+    'help',
   ];
 
   /**
@@ -69,25 +86,76 @@ class SmartDefaultSettingsTest extends KernelTestBase {
     $this->manager = $this->container->get('plugin.manager.ckeditor5.plugin');
     $this->typedConfig = $this->container->get('config.typed');
     $this->smartDefaultSettings = $this->container->get('ckeditor5.smart_default_settings');
+    $this->database = $this->container->get('database');
+
+    $this->installSchema('dblog', ['watchdog']);
+
+    FilterFormat::create([
+      'format' => 'minimal_ckeditor_wrong_allowed_html',
+      'name' => 'Most basic HTML, but with allowed_html misconfigured',
+      'filters' => [
+        'filter_html' => [
+          'status' => 1,
+          'settings' => [
+            // Misconfiguration aspects:
+            // 1. `<a>`, not `<a href>`, while `DrupalLink` is enabled
+            // 2. `<p style>` even though `style` is globally disallowed by
+            //    filter_html
+            // 3. `<a onclick>` even though `on*` is globally disallowed by
+            //    filter_html
+            'allowed_html' => '<p style> <br> <a onclick>',
+          ],
+        ],
+      ],
+    ])->setSyncing(TRUE)->save();
+    Editor::create([
+      'format' => 'minimal_ckeditor_wrong_allowed_html',
+      'editor' => 'ckeditor',
+      'settings' => [
+        'toolbar' => [
+          'rows' => [
+            0 => [
+              [
+                'name' => 'Basic Formatting',
+                'items' => [
+                  'DrupalLink',
+                ],
+              ],
+            ],
+          ],
+        ],
+        'plugins' => [],
+      ],
+    ])->setSyncing(TRUE)->save();
 
     FilterFormat::create(
-      Yaml::parseFile('core/profiles/standard/config/install/filter.format.full_html.yml')
+      Yaml::parseFile('core/modules/ckeditor5/tests/fixtures/ckeditor4_config/filter.format.full_html.yml')
     )
       ->setSyncing(TRUE)
       ->save();
     Editor::create(
-      Yaml::parseFile('core/profiles/standard/config/install/editor.editor.full_html.yml')
-    )->save();
+      Yaml::parseFile('core/modules/ckeditor5/tests/fixtures/ckeditor4_config/editor.editor.full_html.yml')
+    )->setSyncing(TRUE)->save();
 
-    $basic_html_format = Yaml::parseFile('core/profiles/standard/config/install/filter.format.basic_html.yml');
-    FilterFormat::create($basic_html_format)->save();
+    $basic_html_format = Yaml::parseFile('core/modules/ckeditor5/tests/fixtures/ckeditor4_config/filter.format.basic_html.yml');
+    FilterFormat::create($basic_html_format)->setSyncing(TRUE)->save();
     Editor::create(
-      Yaml::parseFile('core/profiles/standard/config/install/editor.editor.basic_html.yml')
-    )->save();
+      Yaml::parseFile('core/modules/ckeditor5/tests/fixtures/ckeditor4_config/editor.editor.basic_html.yml')
+    )->setSyncing(TRUE)->save();
 
     FilterFormat::create(
-      Yaml::parseFile('core/profiles/standard/config/install/filter.format.restricted_html.yml')
-    )->save();
+      Yaml::parseFile('core/modules/ckeditor5/tests/fixtures/ckeditor4_config/filter.format.restricted_html.yml')
+    )->setSyncing(TRUE)->save();
+
+    $basic_html_format_without_image_uploads = $basic_html_format;
+    $basic_html_format_without_image_uploads['name'] .= ' (without image uploads)';
+    $basic_html_format_without_image_uploads['format'] = 'basic_html_without_image_uploads';
+    FilterFormat::create($basic_html_format_without_image_uploads)->save();
+    Editor::create(
+      ['format' => 'basic_html_without_image_uploads']
+      +
+      Yaml::parseFile('core/modules/ckeditor5/tests/fixtures/ckeditor4_config/editor.editor.basic_html.yml')
+    )->setImageUploadSettings(['status' => FALSE])->setSyncing(TRUE)->save();
 
     $allowed_html_parents = ['filters', 'filter_html', 'settings', 'allowed_html'];
     $current_value = NestedArray::getValue($basic_html_format, $allowed_html_parents);
@@ -96,58 +164,58 @@ class SmartDefaultSettingsTest extends KernelTestBase {
     $basic_html_format_without_h4_h6['name'] .= ' (without H4 and H6)';
     $basic_html_format_without_h4_h6['format'] = 'basic_html_without_h4_h6';
     NestedArray::setValue($basic_html_format_without_h4_h6, $allowed_html_parents, $new_value);
-    FilterFormat::create($basic_html_format_without_h4_h6)->save();
+    FilterFormat::create($basic_html_format_without_h4_h6)->setSyncing(TRUE)->save();
     Editor::create(
       ['format' => 'basic_html_without_h4_h6']
       +
-      Yaml::parseFile('core/profiles/standard/config/install/editor.editor.basic_html.yml')
-    )->save();
+      Yaml::parseFile('core/modules/ckeditor5/tests/fixtures/ckeditor4_config/editor.editor.basic_html.yml')
+    )->setSyncing(TRUE)->save();
 
     $new_value = str_replace(['<h2 id> ', '<h3 id> ', '<h4 id> ', '<h5 id> ', '<h6 id> '], '', $current_value);
     $basic_html_format_without_headings = $basic_html_format;
     $basic_html_format_without_headings['name'] .= ' (without H*)';
     $basic_html_format_without_headings['format'] = 'basic_html_without_headings';
     NestedArray::setValue($basic_html_format_without_headings, $allowed_html_parents, $new_value);
-    FilterFormat::create($basic_html_format_without_headings)->save();
+    FilterFormat::create($basic_html_format_without_headings)->setSyncing(TRUE)->save();
     Editor::create(
       ['format' => 'basic_html_without_headings']
       +
-      Yaml::parseFile('core/profiles/standard/config/install/editor.editor.basic_html.yml')
-    )->save();
+      Yaml::parseFile('core/modules/ckeditor5/tests/fixtures/ckeditor4_config/editor.editor.basic_html.yml')
+    )->setSyncing(TRUE)->save();
 
     $basic_html_format_with_pre = $basic_html_format;
     $basic_html_format_with_pre['name'] .= ' (with <pre>)';
     $basic_html_format_with_pre['format'] = 'basic_html_with_pre';
     NestedArray::setValue($basic_html_format_with_pre, $allowed_html_parents, $current_value . ' <pre>');
-    FilterFormat::create($basic_html_format_with_pre)->save();
+    FilterFormat::create($basic_html_format_with_pre)->setSyncing(TRUE)->save();
     Editor::create(
       ['format' => 'basic_html_with_pre']
       +
-      Yaml::parseFile('core/profiles/standard/config/install/editor.editor.basic_html.yml')
-    )->save();
+      Yaml::parseFile('core/modules/ckeditor5/tests/fixtures/ckeditor4_config/editor.editor.basic_html.yml')
+    )->setSyncing(TRUE)->save();
 
     $basic_html_format_with_h1 = $basic_html_format;
     $basic_html_format_with_h1['name'] .= ' (with <h1>)';
     $basic_html_format_with_h1['format'] = 'basic_html_with_h1';
     NestedArray::setValue($basic_html_format_with_h1, $allowed_html_parents, $current_value . ' <h1>');
-    FilterFormat::create($basic_html_format_with_h1)->save();
+    FilterFormat::create($basic_html_format_with_h1)->setSyncing(TRUE)->save();
     Editor::create(
       ['format' => 'basic_html_with_h1']
       +
-      Yaml::parseFile('core/profiles/standard/config/install/editor.editor.basic_html.yml')
-    )->save();
+      Yaml::parseFile('core/modules/ckeditor5/tests/fixtures/ckeditor4_config/editor.editor.basic_html.yml')
+    )->setSyncing(TRUE)->save();
 
     $new_value = str_replace('<p>', '<p class="text-align-center text-align-justify">', $current_value);
     $basic_html_format_with_alignable_p = $basic_html_format;
     $basic_html_format_with_alignable_p['name'] .= ' (with alignable paragraph support)';
     $basic_html_format_with_alignable_p['format'] = 'basic_html_with_alignable_p';
     NestedArray::setValue($basic_html_format_with_alignable_p, $allowed_html_parents, $new_value);
-    FilterFormat::create($basic_html_format_with_alignable_p)->save();
+    FilterFormat::create($basic_html_format_with_alignable_p)->setSyncing(TRUE)->save();
     Editor::create(
       ['format' => 'basic_html_with_alignable_p']
       +
-      Yaml::parseFile('core/profiles/standard/config/install/editor.editor.basic_html.yml')
-    )->save();
+      Yaml::parseFile('core/modules/ckeditor5/tests/fixtures/ckeditor4_config/editor.editor.basic_html.yml')
+    )->setSyncing(TRUE)->save();
 
     $basic_html_format_with_media_embed = $basic_html_format;
     $basic_html_format_with_media_embed['name'] .= ' (with Media Embed support)';
@@ -156,30 +224,91 @@ class SmartDefaultSettingsTest extends KernelTestBase {
     $basic_html_format_with_media_embed['filters']['media_embed'] = ['status' => TRUE];
     $new_value = $current_value . ' <drupal-media data-entity-type data-entity-uuid data-align data-caption alt>';
     NestedArray::setValue($basic_html_format_with_media_embed, $allowed_html_parents, $new_value);
-    FilterFormat::create($basic_html_format_with_media_embed)->save();
+    FilterFormat::create($basic_html_format_with_media_embed)->setSyncing(TRUE)->save();
     $basic_html_editor_with_media_embed = Editor::create(
       ['format' => 'basic_html_with_media_embed']
       +
-      Yaml::parseFile('core/profiles/standard/config/install/editor.editor.basic_html.yml')
+      Yaml::parseFile('core/modules/ckeditor5/tests/fixtures/ckeditor4_config/editor.editor.basic_html.yml')
     );
     $settings = $basic_html_editor_with_media_embed->getSettings();
     // Add "insert media from library" button to CKEditor 4 configuration, the
     // pre-existing toolbar item group labeled "Media".
     $settings['toolbar']['rows'][0][3]['items'][] = 'DrupalMediaLibrary';
     $basic_html_editor_with_media_embed->setSettings($settings);
-    $basic_html_editor_with_media_embed->save();
+    $basic_html_editor_with_media_embed->setSyncing(TRUE)->save();
+
+    $basic_html_format_with_media_embed_view_mode_invalid = $basic_html_format_with_media_embed;
+    $basic_html_format_with_media_embed_view_mode_invalid['name'] = ' (with Media Embed support, view mode enabled but no view modes configured)';
+    $basic_html_format_with_media_embed_view_mode_invalid['format'] = 'basic_html_with_media_embed_view_mode_enabled_no_view_modes_configured';
+    $current_value_media_embed = NestedArray::getValue($basic_html_format_with_media_embed, $allowed_html_parents);
+    $new_value = str_replace('<drupal-media data-entity-type data-entity-uuid data-align data-caption alt>', '<drupal-media data-entity-type data-entity-uuid data-align data-caption alt data-view-mode>', $current_value_media_embed);
+    NestedArray::setValue($basic_html_format_with_media_embed_view_mode_invalid, $allowed_html_parents, $new_value);
+    FilterFormat::create($basic_html_format_with_media_embed_view_mode_invalid)->setSyncing(TRUE)->save();
+    $basic_html_editor_with_media_embed_view_mode_enabled_no_view_modes_configured = Editor::create(
+      ['format' => 'basic_html_with_media_embed_view_mode_enabled_no_view_modes_configured']
+      +
+      Yaml::parseFile('core/modules/ckeditor5/tests/fixtures/ckeditor4_config/editor.editor.basic_html.yml')
+    );
+    $settings = $basic_html_editor_with_media_embed_view_mode_enabled_no_view_modes_configured->getSettings();
+    // Add "insert media from library" button to CKEditor 4 configuration, the
+    // pre-existing toolbar item group labeled "Media".
+    $settings['toolbar']['rows'][0][3]['items'][] = 'DrupalMediaLibrary';
+    $basic_html_editor_with_media_embed_view_mode_enabled_no_view_modes_configured->setSettings($settings);
+    $basic_html_editor_with_media_embed_view_mode_enabled_no_view_modes_configured->setSyncing(TRUE)->save();
 
     $new_value = str_replace('<img src alt height width data-entity-type data-entity-uuid data-align data-caption>', '<img src alt height width data-*>', $current_value);
     $basic_html_format_with_any_data_attr = $basic_html_format;
     $basic_html_format_with_any_data_attr['name'] .= ' (with any data-* attribute on images)';
     $basic_html_format_with_any_data_attr['format'] = 'basic_html_with_any_data_attr';
     NestedArray::setValue($basic_html_format_with_any_data_attr, $allowed_html_parents, $new_value);
-    FilterFormat::create($basic_html_format_with_any_data_attr)->save();
+    FilterFormat::create($basic_html_format_with_any_data_attr)->setSyncing(TRUE)->save();
     Editor::create(
       ['format' => 'basic_html_with_any_data_attr']
       +
-      Yaml::parseFile('core/profiles/standard/config/install/editor.editor.basic_html.yml')
-    )->save();
+      Yaml::parseFile('core/modules/ckeditor5/tests/fixtures/ckeditor4_config/editor.editor.basic_html.yml')
+    )->setSyncing(TRUE)->save();
+
+    $basic_html_format_with_media_embed_view_mode_enabled_two_view_modes_configured = $basic_html_format_with_media_embed_view_mode_invalid;
+    $basic_html_format_with_media_embed_view_mode_enabled_two_view_modes_configured['name'] = ' (with Media Embed support, view mode enabled and two view modes configured )';
+    $basic_html_format_with_media_embed_view_mode_enabled_two_view_modes_configured['format'] = 'basic_html_with_media_embed_view_mode_enabled_two_view_modes_configured';
+    FilterFormat::create($basic_html_format_with_media_embed_view_mode_enabled_two_view_modes_configured)->setSyncing(TRUE)->save();
+    $basic_html_editor_with_media_embed_view_mode_enabled_two_view_modes_configured = Editor::create(
+      ['format' => 'basic_html_with_media_embed_view_mode_enabled_two_view_modes_configured']
+      +
+      Yaml::parseFile('core/modules/ckeditor5/tests/fixtures/ckeditor4_config/editor.editor.basic_html.yml')
+    );
+    $settings = $basic_html_editor_with_media_embed_view_mode_enabled_two_view_modes_configured->getSettings();
+    // Add "insert media from library" button to CKEditor 4 configuration, the
+    // pre-existing toolbar item group labeled "Media".
+    $settings['toolbar']['rows'][0][3]['items'][] = 'DrupalMediaLibrary';
+    $basic_html_editor_with_media_embed_view_mode_enabled_two_view_modes_configured->setSettings($settings);
+    $basic_html_editor_with_media_embed_view_mode_enabled_two_view_modes_configured->setSyncing(TRUE)->save();
+    EntityViewMode::create([
+      'id' => 'media.view_mode_1',
+      'targetEntityType' => 'media',
+      'status' => TRUE,
+      'enabled' => TRUE,
+      'label' => 'View Mode 1',
+    ])->setSyncing(TRUE)->save();
+    EntityViewMode::create([
+      'id' => 'media.view_mode_2',
+      'targetEntityType' => 'media',
+      'status' => TRUE,
+      'enabled' => TRUE,
+      'label' => 'View Mode 2',
+    ])->setSyncing(TRUE)->save();
+    $filter_format = FilterFormat::load('basic_html_with_media_embed_view_mode_enabled_two_view_modes_configured');
+    $filter_format->setFilterConfig('media_embed', [
+      'status' => TRUE,
+      'settings' => [
+        'default_view_mode' => 'view_mode_1',
+        'allowed_media_types' => [],
+        'allowed_view_modes' => [
+          'view_mode_1' => 'view_mode_1',
+          'view_mode_2' => 'view_mode_2',
+        ],
+      ],
+    ])->setSyncing(TRUE)->save();
 
     $filter_plugin_manager = $this->container->get('plugin.manager.filter');
     FilterFormat::create([
@@ -191,12 +320,12 @@ class SmartDefaultSettingsTest extends KernelTestBase {
           'settings' => $filter_plugin_manager->getDefinition('filter_html')['settings'],
         ],
       ],
-    ])->save();
+    ])->setSyncing(TRUE)->save();
 
     FilterFormat::create([
       'format' => 'cke4_plugins_with_settings',
       'name' => 'All CKEditor 4 core plugins with settings',
-    ])->save();
+    ])->setSyncing(TRUE)->save();
     Editor::create([
       'format' => 'cke4_plugins_with_settings',
       'editor' => 'ckeditor',
@@ -209,6 +338,9 @@ class SmartDefaultSettingsTest extends KernelTestBase {
                 'items' => [
                   'Language',
                   'Styles',
+                  // Blockquote does not have settings. It's present only to
+                  // support an additional tag, to test realistic styles.
+                  'Blockquote',
                 ],
               ],
               [
@@ -225,7 +357,7 @@ class SmartDefaultSettingsTest extends KernelTestBase {
             'language_list' => 'all',
           ],
           'stylescombo' => [
-            'styles' => "p.callout|Callout\r\nblockquote.interesting|Interesting quote",
+            'styles' => "p.callout|Callout\r\nblockquote.interesting.highlighted|Interesting & highlighted quote\n\nblockquote.famous |    Famous\n",
           ],
           // Plugin setting without upgrade path.
           'llama_contextual_and_button' => [
@@ -233,38 +365,48 @@ class SmartDefaultSettingsTest extends KernelTestBase {
           ],
         ],
       ],
-    ])->save();
+    ])->setSyncing(TRUE)->save();
 
     FilterFormat::create([
-      'format' => 'cke4_plugins_with_settings_for_disabled_plugins',
-      'name' => 'All CKEditor 4 core plugins with settings for disabled plugins',
-    ])->save();
+      'format' => 'cke4_stylescombo_span',
+      'name' => 'A CKEditor 4 configured to have span styles',
+      'filters' => [
+        'filter_html' => [
+          'status' => 1,
+          'settings' => [
+            'allowed_html' => '<p> <br> <span class="llama">',
+          ] + $filter_plugin_manager->getDefinition('filter_html')['settings'],
+        ],
+      ],
+    ])->setSyncing(TRUE)->save();
     Editor::create([
-      'format' => 'cke4_plugins_with_settings_for_disabled_plugins',
+      'format' => 'cke4_stylescombo_span',
       'editor' => 'ckeditor',
       'settings' => [
-        // Empty toolbar.
         'toolbar' => [
           'rows' => [
             0 => [
               [
-                'name' => 'Only buttons without settings',
+                'name' => 'Whatever',
                 'items' => [
-                  'Bold',
+                  'Styles',
                 ],
               ],
             ],
           ],
         ],
-        // Same plugin settings as `cke4_plugins_with_settings`.
-        'plugins' => Editor::load('cke4_plugins_with_settings')->getSettings()['plugins'],
+        'plugins' => [
+          'stylescombo' => [
+            'styles' => "span.llama|Llama span",
+          ],
+        ],
       ],
-    ])->save();
+    ])->setSyncing(TRUE)->save();
 
     FilterFormat::create([
       'format' => 'cke4_contrib_plugins_now_in_core',
       'name' => 'All CKEditor 4 contrib plugins now in core',
-    ])->save();
+    ])->setSyncing(TRUE)->save();
     Editor::create([
       'format' => 'cke4_contrib_plugins_now_in_core',
       'editor' => 'ckeditor',
@@ -284,7 +426,7 @@ class SmartDefaultSettingsTest extends KernelTestBase {
         ],
         'plugins' => [],
       ],
-    ])->save();
+    ])->setSyncing(TRUE)->save();
   }
 
   /**
@@ -304,15 +446,20 @@ class SmartDefaultSettingsTest extends KernelTestBase {
    * @param array $expected_fundamental_compatibility_violations
    *   All expected fundamental compatibility violations for the given text
    *   format.
+   * @param string[] $expected_db_logs
+   *   The expected database logs associated with the computed settings.
    * @param string[] $expected_messages
    *   The expected messages associated with the computed settings.
    * @param array|null $expected_post_filter_drop_fundamental_compatibility_violations
    *   All expected fundamental compatibility violations for the given text
    *   format, after dropping filters specified in $filters_to_drop.
+   * @param array|null $expected_post_update_text_editor_violations
+   *   All expected media and filter settings violations for the given text
+   *   format.
    *
    * @dataProvider provider
    */
-  public function test(string $format_id, array $filters_to_drop, array $expected_ckeditor5_settings, string $expected_superset, array $expected_fundamental_compatibility_violations, array $expected_messages, ?array $expected_post_filter_drop_fundamental_compatibility_violations = NULL): void {
+  public function test(string $format_id, array $filters_to_drop, array $expected_ckeditor5_settings, string $expected_superset, array $expected_fundamental_compatibility_violations, array $expected_db_logs, array $expected_messages, ?array $expected_post_filter_drop_fundamental_compatibility_violations = NULL, ?array $expected_post_update_text_editor_violations = NULL): void {
     $text_format = FilterFormat::load($format_id);
     $text_editor = Editor::load($format_id);
 
@@ -401,8 +548,32 @@ class SmartDefaultSettingsTest extends KernelTestBase {
       $updated_text_format = $text_format;
     }
 
-    // The resulting pair should be valid.
-    $this->assertSame([], $this->validatePairToViolationsArray($updated_text_editor, $updated_text_format, TRUE));
+    $updated_validation_errors = $this->validatePairToViolationsArray($updated_text_editor, $updated_text_format, TRUE);
+    if (is_null($expected_post_update_text_editor_violations)) {
+      // If a violation is not expected, it should be compared against an empty array.
+      $this->assertSame([], $updated_validation_errors);
+    }
+    else {
+      $this->assertSame($expected_post_update_text_editor_violations, $updated_validation_errors);
+    }
+
+    $db_logged = $this
+      ->database
+      ->select('watchdog', 'w')
+      ->fields('w', ['message', 'variables', 'severity'])
+      ->condition('type', 'ckeditor5')
+      ->orderBy('wid')
+      ->execute()
+      ->fetchAll();
+
+    $type_to_status = [
+      6 => 'status',
+      4 => 'warning',
+    ];
+    $db_logs = [];
+    foreach ($db_logged as $log) {
+      $db_logs[$type_to_status[$log->severity]][] = $log->message;
+    }
 
     // Transforms TranslatableMarkup objects to string.
     foreach ($messages as $type => $messages_per_type) {
@@ -411,6 +582,7 @@ class SmartDefaultSettingsTest extends KernelTestBase {
       }
     }
 
+    $this->assertSame($expected_db_logs, $db_logs);
     $this->assertSame($expected_messages, $messages);
   }
 
@@ -437,7 +609,7 @@ class SmartDefaultSettingsTest extends KernelTestBase {
             'numberedList',
             '|',
             'blockQuote',
-            'uploadImage',
+            'drupalInsertImage',
             '|',
             'heading',
             '|',
@@ -446,28 +618,9 @@ class SmartDefaultSettingsTest extends KernelTestBase {
             '|',
             // The 'code' button added because <code> is allowed.
             'code',
-            // The 'textPartLanguage' button added because <span> is allowed.
-            'textPartLanguage',
           ],
         ],
         'plugins' => [
-          'ckeditor5_sourceEditing' => [
-            'allowed_tags' => [
-              '<cite>',
-              '<dl>',
-              '<dt>',
-              '<dd>',
-              '<a hreflang>',
-              '<blockquote cite>',
-              '<ul type>',
-              '<ol type>',
-              '<h2 id>',
-              '<h3 id>',
-              '<h4 id>',
-              '<h5 id>',
-              '<h6 id>',
-            ],
-          ],
           'ckeditor5_heading' => [
             'enabled_headings' => [
               'heading2',
@@ -480,31 +633,52 @@ class SmartDefaultSettingsTest extends KernelTestBase {
           'ckeditor5_imageResize' => [
             'allow_resize' => TRUE,
           ],
-          'ckeditor5_language' => [
-            'language_list' => 'un',
-          ],
           'ckeditor5_list' => [
             'reversed' => FALSE,
             'startIndex' => TRUE,
           ],
+          'ckeditor5_sourceEditing' => [
+            'allowed_tags' => [
+              '<cite>',
+              '<dl>',
+              '<dt>',
+              '<dd>',
+              '<span>',
+              '<a hreflang>',
+              '<blockquote cite>',
+              '<ul type>',
+              '<ol type>',
+              '<h2 id>',
+              '<h3 id>',
+              '<h4 id>',
+              '<h5 id>',
+              '<h6 id>',
+            ],
+          ],
         ],
       ],
-      'expected_superset' => '<span lang dir>',
+      'expected_superset' => '',
       'expected_fundamental_compatibility_violations' => [],
-      'expected_messages' => [
+      'expected_db_logs' => [
         'status' => [
-          'The following plugins were enabled to support tags that are allowed by this text format: <em class="placeholder">Code (for tags: &lt;code&gt;) Language (for tags: &lt;span&gt;)</em>.',
-          'The following tags were permitted by this format\'s filter configuration, but no plugin was available that supports them. To ensure the tags remain supported by this text format, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;cite&gt; &lt;dl&gt; &lt;dt&gt; &lt;dd&gt;.',
+          'The CKEditor 5 migration enabled the following plugins to support tags that are allowed by the <em class="placeholder">Basic HTML</em> text format: <em class="placeholder">Code (for tags: &lt;code&gt;)</em>. The text format must be saved to make these changes active.',
+          'The following tags were permitted by the <em class="placeholder">Basic HTML</em> text format\'s filter configuration, but no plugin was available that supports them. To ensure the tags remain supported by this text format, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;cite&gt; &lt;dl&gt; &lt;dt&gt; &lt;dd&gt; &lt;span&gt;. The text format must be saved to make these changes active.',
         ],
       ],
+      'expected_messages' => [],
     ];
 
     yield "basic_html can be switched to CKEditor 5 without problems (3 upgrade messages)" => NestedArray::mergeDeep(
       $basic_html_test_case,
       [
+        'expected_db_logs' => [
+          'status' => [
+            'As part of migrating to CKEditor 5, it was found that the <em class="placeholder">Basic HTML</em> text format\'s HTML filters includes plugins that support the following tags, but not some of their attributes. To ensure these attributes remain supported, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt;. The text format must be saved to make these changes active.',
+          ],
+        ],
         'expected_messages' => [
           'status' => [
-            'This format\'s HTML filters includes plugins that support the following tags, but not some of their attributes. To ensure these attributes remain supported by this text format, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt;.',
+            'To maintain the capabilities of this text format, <a target="_blank" href="/admin/help/ckeditor5#migration-settings">the CKEditor 5 migration</a> did the following: Enabled these plugins: (<em class="placeholder">Code</em>). Added these tags/attributes to the Source Editing Plugin\'s <a target="_blank" href="/admin/help/ckeditor5#source-editing">Manually editable HTML tags</a> setting: &lt;cite&gt; &lt;dl&gt; &lt;dt&gt; &lt;dd&gt; &lt;span&gt; &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt;. Additional details are available in your logs.',
           ],
         ],
       ]
@@ -525,9 +699,14 @@ class SmartDefaultSettingsTest extends KernelTestBase {
             ],
           ],
         ],
+        'expected_db_logs' => [
+          'status' => [
+            'As part of migrating to CKEditor 5, it was found that the <em class="placeholder">Basic HTML</em> text format\'s HTML filters includes plugins that support the following tags, but not some of their attributes. To ensure these attributes remain supported, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt; &lt;img data-caption&gt;. The text format must be saved to make these changes active.',
+          ],
+        ],
         'expected_messages' => [
           'status' => [
-            'This format\'s HTML filters includes plugins that support the following tags, but not some of their attributes. To ensure these attributes remain supported by this text format, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt; &lt;img data-caption&gt;.',
+            'To maintain the capabilities of this text format, <a target="_blank" href="/admin/help/ckeditor5#migration-settings">the CKEditor 5 migration</a> did the following: Enabled these plugins: (<em class="placeholder">Code</em>). Added these tags/attributes to the Source Editing Plugin\'s <a target="_blank" href="/admin/help/ckeditor5#source-editing">Manually editable HTML tags</a> setting: &lt;cite&gt; &lt;dl&gt; &lt;dt&gt; &lt;dd&gt; &lt;span&gt; &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt; &lt;img data-caption&gt;. Additional details are available in your logs.',
           ],
         ],
       ]);
@@ -547,12 +726,50 @@ class SmartDefaultSettingsTest extends KernelTestBase {
             ],
           ],
         ],
+        'expected_db_logs' => [
+          'status' => [
+            'As part of migrating to CKEditor 5, it was found that the <em class="placeholder">Basic HTML</em> text format\'s HTML filters includes plugins that support the following tags, but not some of their attributes. To ensure these attributes remain supported, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt; &lt;img data-align&gt;. The text format must be saved to make these changes active.',
+          ],
+        ],
         'expected_messages' => [
           'status' => [
-            'This format\'s HTML filters includes plugins that support the following tags, but not some of their attributes. To ensure these attributes remain supported by this text format, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt; &lt;img data-align&gt;.',
+            'To maintain the capabilities of this text format, <a target="_blank" href="/admin/help/ckeditor5#migration-settings">the CKEditor 5 migration</a> did the following: Enabled these plugins: (<em class="placeholder">Code</em>). Added these tags/attributes to the Source Editing Plugin\'s <a target="_blank" href="/admin/help/ckeditor5#source-editing">Manually editable HTML tags</a> setting: &lt;cite&gt; &lt;dl&gt; &lt;dt&gt; &lt;dd&gt; &lt;span&gt; &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt; &lt;img data-align&gt;. Additional details are available in your logs.',
           ],
         ],
       ]);
+
+    yield "basic_html_without_image_uploads can be switched to CKEditor 5 without problems, <img data-entity-type data-entity-uuid> support is retained via sourceEditing" => [
+      'format_id' => 'basic_html_without_image_uploads',
+      'filters_to_drop' => $basic_html_test_case['filters_to_drop'],
+      'expected_ckeditor5_settings' => [
+        'toolbar' => $basic_html_test_case['expected_ckeditor5_settings']['toolbar'],
+        'plugins' => [
+          'ckeditor5_heading' => $basic_html_test_case['expected_ckeditor5_settings']['plugins']['ckeditor5_heading'],
+          'ckeditor5_imageResize' => $basic_html_test_case['expected_ckeditor5_settings']['plugins']['ckeditor5_imageResize'],
+          'ckeditor5_list' => $basic_html_test_case['expected_ckeditor5_settings']['plugins']['ckeditor5_list'],
+          'ckeditor5_sourceEditing' => [
+            'allowed_tags' => array_merge(
+              $basic_html_test_case['expected_ckeditor5_settings']['plugins']['ckeditor5_sourceEditing']['allowed_tags'],
+              ['<img data-entity-type data-entity-uuid>'],
+            ),
+          ],
+        ],
+      ],
+      'expected_superset' => $basic_html_test_case['expected_superset'],
+      'expected_fundamental_compatibility_violations' => $basic_html_test_case['expected_fundamental_compatibility_violations'],
+      'expected_db_logs' => [
+        'status' => [
+          'The CKEditor 5 migration enabled the following plugins to support tags that are allowed by the <em class="placeholder">Basic HTML (without image uploads)</em> text format: <em class="placeholder">Code (for tags: &lt;code&gt;)</em>. The text format must be saved to make these changes active.',
+          'The following tags were permitted by the <em class="placeholder">Basic HTML (without image uploads)</em> text format\'s filter configuration, but no plugin was available that supports them. To ensure the tags remain supported by this text format, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;cite&gt; &lt;dl&gt; &lt;dt&gt; &lt;dd&gt; &lt;span&gt;. The text format must be saved to make these changes active.',
+          'As part of migrating to CKEditor 5, it was found that the <em class="placeholder">Basic HTML (without image uploads)</em> text format\'s HTML filters includes plugins that support the following tags, but not some of their attributes. To ensure these attributes remain supported, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt; &lt;img data-entity-type data-entity-uuid&gt;. The text format must be saved to make these changes active.',
+        ],
+      ],
+      'expected_messages' => [
+        'status' => [
+          'To maintain the capabilities of this text format, <a target="_blank" href="/admin/help/ckeditor5#migration-settings">the CKEditor 5 migration</a> did the following: Enabled these plugins: (<em class="placeholder">Code</em>). Added these tags/attributes to the Source Editing Plugin\'s <a target="_blank" href="/admin/help/ckeditor5#source-editing">Manually editable HTML tags</a> setting: &lt;cite&gt; &lt;dl&gt; &lt;dt&gt; &lt;dd&gt; &lt;span&gt; &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt; &lt;img data-entity-type data-entity-uuid&gt;. Additional details are available in your logs.',
+        ],
+      ],
+    ];
 
     yield "basic_html_without_h4_h6 can be switched to CKEditor 5 without problems, heading configuration computed automatically" => [
       'format_id' => 'basic_html_without_h4_h6',
@@ -560,12 +777,6 @@ class SmartDefaultSettingsTest extends KernelTestBase {
       'expected_ckeditor5_settings' => [
         'toolbar' => $basic_html_test_case['expected_ckeditor5_settings']['toolbar'],
         'plugins' => [
-          'ckeditor5_sourceEditing' => [
-            'allowed_tags' => array_values(array_diff(
-              $basic_html_test_case['expected_ckeditor5_settings']['plugins']['ckeditor5_sourceEditing']['allowed_tags'],
-              ['<h4 id>', '<h6 id>'],
-            )),
-          ],
           'ckeditor5_heading' => [
             'enabled_headings' => [
               'heading2',
@@ -574,17 +785,29 @@ class SmartDefaultSettingsTest extends KernelTestBase {
             ],
           ],
           'ckeditor5_imageResize' => ['allow_resize' => TRUE],
-          'ckeditor5_language' => $basic_html_test_case['expected_ckeditor5_settings']['plugins']['ckeditor5_language'],
           'ckeditor5_list' => ['reversed' => FALSE, 'startIndex' => TRUE],
+          'ckeditor5_sourceEditing' => [
+            'allowed_tags' => array_values(array_diff(
+              $basic_html_test_case['expected_ckeditor5_settings']['plugins']['ckeditor5_sourceEditing']['allowed_tags'],
+              ['<h4 id>', '<h6 id>'],
+            )),
+          ],
         ],
       ],
       'expected_superset' => $basic_html_test_case['expected_superset'],
       'expected_fundamental_compatibility_violations' => $basic_html_test_case['expected_fundamental_compatibility_violations'],
-      'expected_messages' => array_merge_recursive($basic_html_test_case['expected_messages'], [
+      'expected_db_logs' => [
         'status' => [
-          'This format\'s HTML filters includes plugins that support the following tags, but not some of their attributes. To ensure these attributes remain supported by this text format, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h5 id&gt;.',
+          'The CKEditor 5 migration enabled the following plugins to support tags that are allowed by the <em class="placeholder">Basic HTML (without H4 and H6)</em> text format: <em class="placeholder">Code (for tags: &lt;code&gt;)</em>. The text format must be saved to make these changes active.',
+          'The following tags were permitted by the <em class="placeholder">Basic HTML (without H4 and H6)</em> text format\'s filter configuration, but no plugin was available that supports them. To ensure the tags remain supported by this text format, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;cite&gt; &lt;dl&gt; &lt;dt&gt; &lt;dd&gt; &lt;span&gt;. The text format must be saved to make these changes active.',
+          'As part of migrating to CKEditor 5, it was found that the <em class="placeholder">Basic HTML (without H4 and H6)</em> text format\'s HTML filters includes plugins that support the following tags, but not some of their attributes. To ensure these attributes remain supported, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h5 id&gt;. The text format must be saved to make these changes active.',
         ],
-      ]),
+      ],
+      'expected_messages' => [
+        'status' => [
+          'To maintain the capabilities of this text format, <a target="_blank" href="/admin/help/ckeditor5#migration-settings">the CKEditor 5 migration</a> did the following: Enabled these plugins: (<em class="placeholder">Code</em>). Added these tags/attributes to the Source Editing Plugin\'s <a target="_blank" href="/admin/help/ckeditor5#source-editing">Manually editable HTML tags</a> setting: &lt;cite&gt; &lt;dl&gt; &lt;dt&gt; &lt;dd&gt; &lt;span&gt; &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h5 id&gt;. Additional details are available in your logs.',
+        ],
+      ],
     ];
 
     yield "basic_html_with_h1 can be switched to CKEditor 5 without problems, heading configuration computed automatically" => [
@@ -593,9 +816,6 @@ class SmartDefaultSettingsTest extends KernelTestBase {
       'expected_ckeditor5_settings' => [
         'toolbar' => $basic_html_test_case['expected_ckeditor5_settings']['toolbar'],
         'plugins' => [
-          'ckeditor5_sourceEditing' => [
-            'allowed_tags' => $basic_html_test_case['expected_ckeditor5_settings']['plugins']['ckeditor5_sourceEditing']['allowed_tags'],
-          ],
           'ckeditor5_heading' => [
             'enabled_headings' => [
               'heading1',
@@ -607,17 +827,26 @@ class SmartDefaultSettingsTest extends KernelTestBase {
             ],
           ],
           'ckeditor5_imageResize' => ['allow_resize' => TRUE],
-          'ckeditor5_language' => $basic_html_test_case['expected_ckeditor5_settings']['plugins']['ckeditor5_language'],
           'ckeditor5_list' => ['reversed' => FALSE, 'startIndex' => TRUE],
+          'ckeditor5_sourceEditing' => [
+            'allowed_tags' => $basic_html_test_case['expected_ckeditor5_settings']['plugins']['ckeditor5_sourceEditing']['allowed_tags'],
+          ],
         ],
       ],
       'expected_superset' => $basic_html_test_case['expected_superset'],
       'expected_fundamental_compatibility_violations' => $basic_html_test_case['expected_fundamental_compatibility_violations'],
-      'expected_messages' => array_merge_recursive($basic_html_test_case['expected_messages'], [
+      'expected_db_logs' => [
         'status' => [
-          'This format\'s HTML filters includes plugins that support the following tags, but not some of their attributes. To ensure these attributes remain supported by this text format, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt;.',
+          'The CKEditor 5 migration enabled the following plugins to support tags that are allowed by the <em class="placeholder">Basic HTML (with &lt;h1&gt;)</em> text format: <em class="placeholder">Code (for tags: &lt;code&gt;)</em>. The text format must be saved to make these changes active.',
+          'The following tags were permitted by the <em class="placeholder">Basic HTML (with &lt;h1&gt;)</em> text format\'s filter configuration, but no plugin was available that supports them. To ensure the tags remain supported by this text format, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;cite&gt; &lt;dl&gt; &lt;dt&gt; &lt;dd&gt; &lt;span&gt;. The text format must be saved to make these changes active.',
+          'As part of migrating to CKEditor 5, it was found that the <em class="placeholder">Basic HTML (with &lt;h1&gt;)</em> text format\'s HTML filters includes plugins that support the following tags, but not some of their attributes. To ensure these attributes remain supported, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt;. The text format must be saved to make these changes active.',
         ],
-      ]),
+      ],
+      'expected_messages' => [
+        'status' => [
+          'To maintain the capabilities of this text format, <a target="_blank" href="/admin/help/ckeditor5#migration-settings">the CKEditor 5 migration</a> did the following: Enabled these plugins: (<em class="placeholder">Code</em>). Added these tags/attributes to the Source Editing Plugin\'s <a target="_blank" href="/admin/help/ckeditor5#source-editing">Manually editable HTML tags</a> setting: &lt;cite&gt; &lt;dl&gt; &lt;dt&gt; &lt;dd&gt; &lt;span&gt; &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt;. Additional details are available in your logs.',
+        ],
+      ],
     ];
 
     yield "basic_html_without_headings can be switched to CKEditor 5 without problems, heading configuration computed automatically" => [
@@ -631,24 +860,30 @@ class SmartDefaultSettingsTest extends KernelTestBase {
           ),
         ],
         'plugins' => [
+          'ckeditor5_imageResize' => ['allow_resize' => TRUE],
+          'ckeditor5_list' => ['reversed' => FALSE, 'startIndex' => TRUE],
           'ckeditor5_sourceEditing' => [
             'allowed_tags' => array_values(array_diff(
               $basic_html_test_case['expected_ckeditor5_settings']['plugins']['ckeditor5_sourceEditing']['allowed_tags'],
               ['<h2 id>', '<h3 id>', '<h4 id>', '<h5 id>', '<h6 id>'],
             )),
           ],
-          'ckeditor5_imageResize' => ['allow_resize' => TRUE],
-          'ckeditor5_language' => $basic_html_test_case['expected_ckeditor5_settings']['plugins']['ckeditor5_language'],
-          'ckeditor5_list' => ['reversed' => FALSE, 'startIndex' => TRUE],
         ],
       ],
       'expected_superset' => $basic_html_test_case['expected_superset'],
       'expected_fundamental_compatibility_violations' => $basic_html_test_case['expected_fundamental_compatibility_violations'],
-      'expected_messages' => array_merge_recursive($basic_html_test_case['expected_messages'], [
+      'expected_db_logs' => [
         'status' => [
-          'This format\'s HTML filters includes plugins that support the following tags, but not some of their attributes. To ensure these attributes remain supported by this text format, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt;.',
+          'The CKEditor 5 migration enabled the following plugins to support tags that are allowed by the <em class="placeholder">Basic HTML (without H*)</em> text format: <em class="placeholder">Code (for tags: &lt;code&gt;)</em>. The text format must be saved to make these changes active.',
+          'The following tags were permitted by the <em class="placeholder">Basic HTML (without H*)</em> text format\'s filter configuration, but no plugin was available that supports them. To ensure the tags remain supported by this text format, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;cite&gt; &lt;dl&gt; &lt;dt&gt; &lt;dd&gt; &lt;span&gt;. The text format must be saved to make these changes active.',
+          'As part of migrating to CKEditor 5, it was found that the <em class="placeholder">Basic HTML (without H*)</em> text format\'s HTML filters includes plugins that support the following tags, but not some of their attributes. To ensure these attributes remain supported, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt;. The text format must be saved to make these changes active.',
         ],
-      ]),
+      ],
+      'expected_messages' => [
+        'status' => [
+          'To maintain the capabilities of this text format, <a target="_blank" href="/admin/help/ckeditor5#migration-settings">the CKEditor 5 migration</a> did the following: Enabled these plugins: (<em class="placeholder">Code</em>). Added these tags/attributes to the Source Editing Plugin\'s <a target="_blank" href="/admin/help/ckeditor5#source-editing">Manually editable HTML tags</a> setting: &lt;cite&gt; &lt;dl&gt; &lt;dt&gt; &lt;dd&gt; &lt;span&gt; &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt;. Additional details are available in your logs.',
+        ],
+      ],
     ];
 
     yield "basic_html_with_pre can be switched to CKEditor 5 without problems, heading configuration computed automatically" => [
@@ -663,13 +898,21 @@ class SmartDefaultSettingsTest extends KernelTestBase {
         ],
         'plugins' => $basic_html_test_case['expected_ckeditor5_settings']['plugins'],
       ],
-      'expected_superset' => '<code class="language-*"> ' . $basic_html_test_case['expected_superset'],
+      'expected_superset' => '<code class="language-*">',
       'expected_fundamental_compatibility_violations' => $basic_html_test_case['expected_fundamental_compatibility_violations'],
+      'expected_db_logs' => [
+        'status' => [
+          'The CKEditor 5 migration enabled the following plugins to support tags that are allowed by the <em class="placeholder">Basic HTML (with &lt;pre&gt;)</em> text format: <em class="placeholder">Code (for tags: &lt;code&gt;) Code Block (for tags: &lt;pre&gt;)</em>. The text format must be saved to make these changes active.',
+          str_replace('Basic HTML', 'Basic HTML (with &lt;pre&gt;)', $basic_html_test_case['expected_db_logs']['status'][1]),
+          'As part of migrating to CKEditor 5, it was found that the <em class="placeholder">Basic HTML (with &lt;pre&gt;)</em> text format\'s HTML filters includes plugins that support the following tags, but not some of their attributes. To ensure these attributes remain supported, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt;. The text format must be saved to make these changes active.',
+        ],
+      ],
       'expected_messages' => [
         'status' => [
-          'The following plugins were enabled to support tags that are allowed by this text format: <em class="placeholder">Code (for tags: &lt;code&gt;) Language (for tags: &lt;span&gt;) Code Block (for tags: &lt;pre&gt;)</em>.',
-          $basic_html_test_case['expected_messages']['status'][1],
-          'This format\'s HTML filters includes plugins that support the following tags, but not some of their attributes. To ensure these attributes remain supported by this text format, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt;.',
+          'To maintain the capabilities of this text format, <a target="_blank" href="/admin/help/ckeditor5#migration-settings">the CKEditor 5 migration</a> did the following: Enabled these plugins: (<em class="placeholder">Code, Code Block</em>). Added these tags/attributes to the Source Editing Plugin\'s <a target="_blank" href="/admin/help/ckeditor5#source-editing">Manually editable HTML tags</a> setting: &lt;cite&gt; &lt;dl&gt; &lt;dt&gt; &lt;dd&gt; &lt;span&gt; &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt;. Additional details are available in your logs.',
+        ],
+        'warning' => [
+          'Updating to CKEditor 5 added support for some previously unsupported tags/attributes. A plugin introduced support for the following:   This attribute: <em class="placeholder"> class (for &lt;code&gt;)</em>; Additional details are available in your logs.',
         ],
       ],
     ];
@@ -680,15 +923,18 @@ class SmartDefaultSettingsTest extends KernelTestBase {
       'expected_ckeditor5_settings' => [
         'toolbar' => [
           'items' => array_merge(
-            array_slice($basic_html_test_case['expected_ckeditor5_settings']['toolbar']['items'], 0, -1),
-            [
-              'alignment:center',
-              'alignment:justify',
-            ],
-            array_slice($basic_html_test_case['expected_ckeditor5_settings']['toolbar']['items'], -1)
+            $basic_html_test_case['expected_ckeditor5_settings']['toolbar']['items'],
+            ['alignment'],
           ),
         ],
-        'plugins' => $basic_html_test_case['expected_ckeditor5_settings']['plugins'],
+        'plugins' => array_merge(
+          $basic_html_test_case['expected_ckeditor5_settings']['plugins'],
+          [
+            'ckeditor5_alignment' => [
+              'enabled_alignments' => ['center', 'justify'],
+            ],
+          ],
+        ),
       ],
       'expected_superset' => implode(' ', [
         // Note that aligning left and right is being added, on top of what the
@@ -702,19 +948,27 @@ class SmartDefaultSettingsTest extends KernelTestBase {
         '<h4 class="text-align-center text-align-justify">',
         '<h5 class="text-align-center text-align-justify">',
         '<h6 class="text-align-center text-align-justify">',
-        '<li class="text-align-center text-align-justify">',
-        $basic_html_test_case['expected_superset'],
       ]),
       'expected_fundamental_compatibility_violations' => $basic_html_test_case['expected_fundamental_compatibility_violations'],
-      'expected_messages' => array_merge_recursive($basic_html_test_case['expected_messages'], [
+      'expected_db_logs' => [
         'status' => [
-          'The following plugins were enabled to support specific attributes that are allowed by this text format: <em class="placeholder">Align center ( for tag: &lt;p&gt; to support: class with value(s):  text-align-center), Justify ( for tag: &lt;p&gt; to support: class with value(s):  text-align-justify)</em>.',
-          'This format\'s HTML filters includes plugins that support the following tags, but not some of their attributes. To ensure these attributes remain supported by this text format, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt;.',
+          'The CKEditor 5 migration enabled the following plugins to support tags that are allowed by the <em class="placeholder">Basic HTML (with alignable paragraph support)</em> text format: <em class="placeholder">Code (for tags: &lt;code&gt;)</em>. The text format must be saved to make these changes active.',
+          'The following tags were permitted by the <em class="placeholder">Basic HTML (with alignable paragraph support)</em> text format\'s filter configuration, but no plugin was available that supports them. To ensure the tags remain supported by this text format, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;cite&gt; &lt;dl&gt; &lt;dt&gt; &lt;dd&gt; &lt;span&gt;. The text format must be saved to make these changes active.',
+          'The CKEditor 5 migration process enabled the following plugins to support specific attributes that are allowed by the <em class="placeholder">Basic HTML (with alignable paragraph support)</em> text format: <em class="placeholder">Alignment ( for tag: &lt;p&gt; to support: class with value(s):  text-align-center, text-align-justify)</em>.',
+          'As part of migrating to CKEditor 5, it was found that the <em class="placeholder">Basic HTML (with alignable paragraph support)</em> text format\'s HTML filters includes plugins that support the following tags, but not some of their attributes. To ensure these attributes remain supported, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt;. The text format must be saved to make these changes active.',
         ],
-      ]),
+      ],
+      'expected_messages' => [
+        'status' => [
+          'To maintain the capabilities of this text format, <a target="_blank" href="/admin/help/ckeditor5#migration-settings">the CKEditor 5 migration</a> did the following: Enabled these plugins: (<em class="placeholder">Code, Alignment</em>). Added these tags/attributes to the Source Editing Plugin\'s <a target="_blank" href="/admin/help/ckeditor5#source-editing">Manually editable HTML tags</a> setting: &lt;cite&gt; &lt;dl&gt; &lt;dt&gt; &lt;dd&gt; &lt;span&gt; &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt;. Additional details are available in your logs.',
+        ],
+        'warning' => [
+          'Updating to CKEditor 5 added support for some previously unsupported tags/attributes. A plugin introduced support for the following:   This attribute: <em class="placeholder"> class (for &lt;h2&gt;, &lt;h3&gt;, &lt;h4&gt;, &lt;h5&gt;, &lt;h6&gt;)</em>; Additional details are available in your logs.',
+        ],
+      ],
     ];
 
-    yield "basic_html with media_embed added => <drupal-media> needed => supported through sourceEditing (3 upgrade messages)" => [
+    yield "basic_html with media_embed added (3 upgrade messages)" => [
       'format_id' => 'basic_html_with_media_embed',
       'filters_to_drop' => $basic_html_test_case['filters_to_drop'],
       'expected_ckeditor5_settings' => [
@@ -725,16 +979,86 @@ class SmartDefaultSettingsTest extends KernelTestBase {
             array_slice($basic_html_test_case['expected_ckeditor5_settings']['toolbar']['items'], 10),
           ),
         ],
-        'plugins' => $basic_html_test_case['expected_ckeditor5_settings']['plugins'],
+        'plugins' => array_merge($basic_html_test_case['expected_ckeditor5_settings']['plugins'], ['media_media' => ['allow_view_mode_override' => FALSE]]),
       ],
-      // @todo: Remove data-view-mode in https://www.drupal.org/project/drupal/issues/3269657.
-      'expected_superset' => $basic_html_test_case['expected_superset'] . ' <drupal-media data-view-mode>',
+      'expected_superset' => $basic_html_test_case['expected_superset'],
       'expected_fundamental_compatibility_violations' => $basic_html_test_case['expected_fundamental_compatibility_violations'],
+      'expected_db_logs' => [
+        'status' => [
+          'The CKEditor 5 migration enabled the following plugins to support tags that are allowed by the <em class="placeholder">Basic HTML (with Media Embed support)</em> text format: <em class="placeholder">Code (for tags: &lt;code&gt;)</em>. The text format must be saved to make these changes active.',
+          'The following tags were permitted by the <em class="placeholder">Basic HTML (with Media Embed support)</em> text format\'s filter configuration, but no plugin was available that supports them. To ensure the tags remain supported by this text format, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;cite&gt; &lt;dl&gt; &lt;dt&gt; &lt;dd&gt; &lt;span&gt;. The text format must be saved to make these changes active.',
+          'As part of migrating to CKEditor 5, it was found that the <em class="placeholder">Basic HTML (with Media Embed support)</em> text format\'s HTML filters includes plugins that support the following tags, but not some of their attributes. To ensure these attributes remain supported, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt;. The text format must be saved to make these changes active.',
+        ],
+      ],
+      'expected_messages' => [
+        'status' => [
+          'To maintain the capabilities of this text format, <a target="_blank" href="/admin/help/ckeditor5#migration-settings">the CKEditor 5 migration</a> did the following: Enabled these plugins: (<em class="placeholder">Code</em>). Added these tags/attributes to the Source Editing Plugin\'s <a target="_blank" href="/admin/help/ckeditor5#source-editing">Manually editable HTML tags</a> setting: &lt;cite&gt; &lt;dl&gt; &lt;dt&gt; &lt;dd&gt; &lt;span&gt; &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt;. Additional details are available in your logs.',
+        ],
+      ],
+    ];
+
+    yield "basic_html with media_embed added with data-view-mode allowed but no view modes configured (3 upgrade messages, 1 violation)" => [
+      'format_id' => 'basic_html_with_media_embed_view_mode_enabled_no_view_modes_configured',
+      'filters_to_drop' => $basic_html_test_case['filters_to_drop'],
+      'expected_ckeditor5_settings' => [
+        'toolbar' => [
+          'items' => array_merge(
+            array_slice($basic_html_test_case['expected_ckeditor5_settings']['toolbar']['items'], 0, 10),
+            ['drupalMedia'],
+            array_slice($basic_html_test_case['expected_ckeditor5_settings']['toolbar']['items'], 10),
+          ),
+        ],
+        'plugins' => array_merge($basic_html_test_case['expected_ckeditor5_settings']['plugins'], ['media_media' => ['allow_view_mode_override' => TRUE]]),
+      ],
+      'expected_superset' => $basic_html_test_case['expected_superset'],
+      'expected_fundamental_compatibility_violations' => $basic_html_test_case['expected_fundamental_compatibility_violations'],
+      'expected_db_logs' => [
+        'status' => [
+          'The CKEditor 5 migration enabled the following plugins to support tags that are allowed by the <em class="placeholder">(with Media Embed support, view mode enabled but no view modes configured)</em> text format: <em class="placeholder">Code (for tags: &lt;code&gt;)</em>. The text format must be saved to make these changes active.',
+          'The following tags were permitted by the <em class="placeholder">(with Media Embed support, view mode enabled but no view modes configured)</em> text format\'s filter configuration, but no plugin was available that supports them. To ensure the tags remain supported by this text format, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;cite&gt; &lt;dl&gt; &lt;dt&gt; &lt;dd&gt; &lt;span&gt;. The text format must be saved to make these changes active.',
+          'As part of migrating to CKEditor 5, it was found that the <em class="placeholder">(with Media Embed support, view mode enabled but no view modes configured)</em> text format\'s HTML filters includes plugins that support the following tags, but not some of their attributes. To ensure these attributes remain supported, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt;. The text format must be saved to make these changes active.',
+        ],
+      ],
       'expected_messages' => array_merge_recursive($basic_html_test_case['expected_messages'], [
         'status' => [
-          "This format's HTML filters includes plugins that support the following tags, but not some of their attributes. To ensure these attributes remain supported by this text format, the following were added to the Source Editing plugin's <em>Manually editable HTML tags</em>: &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt;.",
+          'To maintain the capabilities of this text format, <a target="_blank" href="/admin/help/ckeditor5#migration-settings">the CKEditor 5 migration</a> did the following: Enabled these plugins: (<em class="placeholder">Code</em>). Added these tags/attributes to the Source Editing Plugin\'s <a target="_blank" href="/admin/help/ckeditor5#source-editing">Manually editable HTML tags</a> setting: &lt;cite&gt; &lt;dl&gt; &lt;dt&gt; &lt;dd&gt; &lt;span&gt; &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt;. Additional details are available in your logs.',
         ],
       ]),
+      'expected_post_filter_drop_fundamental_compatibility_violations' => [],
+      'expected_post_update_text_editor_violations' => [
+        '' => 'The CKEditor 5 "<em class="placeholder">Media</em>" plugin\'s "<em class="placeholder">Allow the user to override the default view mode</em>" setting should be in sync with the "<em class="placeholder">Embed media</em>" filter\'s "<em class="placeholder">View modes selectable in the &quot;Edit media&quot; dialog</em>" setting: when checked, two or more view modes must be allowed by the filter.',
+      ],
+    ];
+
+    yield "basic_html with media_embed added with data-view-mode allowed and 2 view modes configured (3 upgrade messages)" => [
+      'format_id' => 'basic_html_with_media_embed_view_mode_enabled_two_view_modes_configured',
+      'filters_to_drop' => $basic_html_test_case['filters_to_drop'],
+      'expected_ckeditor5_settings' => [
+        'toolbar' => [
+          'items' => array_merge(
+            array_slice($basic_html_test_case['expected_ckeditor5_settings']['toolbar']['items'], 0, 10),
+            ['drupalMedia'],
+            array_slice($basic_html_test_case['expected_ckeditor5_settings']['toolbar']['items'], 10),
+          ),
+        ],
+        'plugins' => array_merge($basic_html_test_case['expected_ckeditor5_settings']['plugins'], ['media_media' => ['allow_view_mode_override' => TRUE]]),
+      ],
+      'expected_superset' => $basic_html_test_case['expected_superset'],
+      'expected_fundamental_compatibility_violations' => $basic_html_test_case['expected_fundamental_compatibility_violations'],
+      'expected_db_logs' => [
+        'status' => [
+          'The CKEditor 5 migration enabled the following plugins to support tags that are allowed by the <em class="placeholder">(with Media Embed support, view mode enabled and two view modes configured )</em> text format: <em class="placeholder">Code (for tags: &lt;code&gt;)</em>. The text format must be saved to make these changes active.',
+          'The following tags were permitted by the <em class="placeholder">(with Media Embed support, view mode enabled and two view modes configured )</em> text format\'s filter configuration, but no plugin was available that supports them. To ensure the tags remain supported by this text format, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;cite&gt; &lt;dl&gt; &lt;dt&gt; &lt;dd&gt; &lt;span&gt;. The text format must be saved to make these changes active.',
+          'As part of migrating to CKEditor 5, it was found that the <em class="placeholder">(with Media Embed support, view mode enabled and two view modes configured )</em> text format\'s HTML filters includes plugins that support the following tags, but not some of their attributes. To ensure these attributes remain supported, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt;. The text format must be saved to make these changes active.',
+        ],
+      ],
+      'expected_messages' => array_merge_recursive($basic_html_test_case['expected_messages'], [
+        'status' => [
+          'To maintain the capabilities of this text format, <a target="_blank" href="/admin/help/ckeditor5#migration-settings">the CKEditor 5 migration</a> did the following: Enabled these plugins: (<em class="placeholder">Code</em>). Added these tags/attributes to the Source Editing Plugin\'s <a target="_blank" href="/admin/help/ckeditor5#source-editing">Manually editable HTML tags</a> setting: &lt;cite&gt; &lt;dl&gt; &lt;dt&gt; &lt;dd&gt; &lt;span&gt; &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt;. Additional details are available in your logs.',
+        ],
+      ]),
+      'expected_post_filter_drop_fundamental_compatibility_violations' => [],
+      'expected_post_update_text_editor_violations' => [],
     ];
 
     yield "basic_html_with_any_data_attr can be switched to CKEditor 5 without problems (3 upgrade messages)" => [
@@ -743,6 +1067,9 @@ class SmartDefaultSettingsTest extends KernelTestBase {
       'expected_ckeditor5_settings' => [
         'toolbar' => $basic_html_test_case['expected_ckeditor5_settings']['toolbar'],
         'plugins' => [
+          'ckeditor5_heading' => $basic_html_test_case['expected_ckeditor5_settings']['plugins']['ckeditor5_heading'],
+          'ckeditor5_imageResize' => $basic_html_test_case['expected_ckeditor5_settings']['plugins']['ckeditor5_imageResize'],
+          'ckeditor5_list' => $basic_html_test_case['expected_ckeditor5_settings']['plugins']['ckeditor5_list'],
           'ckeditor5_sourceEditing' => [
             'allowed_tags' => array_merge(
               $basic_html_test_case['expected_ckeditor5_settings']['plugins']['ckeditor5_sourceEditing']['allowed_tags'],
@@ -753,11 +1080,18 @@ class SmartDefaultSettingsTest extends KernelTestBase {
       ],
       'expected_superset' => $basic_html_test_case['expected_superset'],
       'expected_fundamental_compatibility_violations' => $basic_html_test_case['expected_fundamental_compatibility_violations'],
-      'expected_messages' => array_merge_recursive($basic_html_test_case['expected_messages'], [
+      'expected_db_logs' => [
         'status' => [
-          'This format\'s HTML filters includes plugins that support the following tags, but not some of their attributes. To ensure these attributes remain supported by this text format, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt; &lt;img data-*&gt;.',
+          'The CKEditor 5 migration enabled the following plugins to support tags that are allowed by the <em class="placeholder">Basic HTML (with any data-* attribute on images)</em> text format: <em class="placeholder">Code (for tags: &lt;code&gt;)</em>. The text format must be saved to make these changes active.',
+          'The following tags were permitted by the <em class="placeholder">Basic HTML (with any data-* attribute on images)</em> text format\'s filter configuration, but no plugin was available that supports them. To ensure the tags remain supported by this text format, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;cite&gt; &lt;dl&gt; &lt;dt&gt; &lt;dd&gt; &lt;span&gt;. The text format must be saved to make these changes active.',
+          'As part of migrating to CKEditor 5, it was found that the <em class="placeholder">Basic HTML (with any data-* attribute on images)</em> text format\'s HTML filters includes plugins that support the following tags, but not some of their attributes. To ensure these attributes remain supported, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt; &lt;img data-*&gt;. The text format must be saved to make these changes active.',
         ],
-      ]),
+      ],
+      'expected_messages' => [
+        'status' => [
+          'To maintain the capabilities of this text format, <a target="_blank" href="/admin/help/ckeditor5#migration-settings">the CKEditor 5 migration</a> did the following: Enabled these plugins: (<em class="placeholder">Code</em>). Added these tags/attributes to the Source Editing Plugin\'s <a target="_blank" href="/admin/help/ckeditor5#source-editing">Manually editable HTML tags</a> setting: &lt;cite&gt; &lt;dl&gt; &lt;dt&gt; &lt;dd&gt; &lt;span&gt; &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt; &lt;img data-*&gt;. Additional details are available in your logs.',
+        ],
+      ],
     ];
 
     yield "restricted_html can be switched to CKEditor 5 after dropping the two markup-creating filters (3 upgrade messages)" => [
@@ -823,12 +1157,22 @@ class SmartDefaultSettingsTest extends KernelTestBase {
       'expected_fundamental_compatibility_violations' => [
         '' => 'CKEditor 5 needs at least the &lt;p&gt; and &lt;br&gt; tags to be allowed to be able to function. They are not allowed by the "<em class="placeholder">Limit allowed HTML tags and correct faulty HTML</em>" (<em class="placeholder">filter_html</em>) filter.',
       ],
+      'expected_db_logs' => [
+        'status' => [
+          'The CKEditor 5 migration enabled the following plugins to support tags that are allowed by the <em class="placeholder">Restricted HTML</em> text format: <em class="placeholder">Link (for tags: &lt;a&gt;) Block quote (for tags: &lt;blockquote&gt;) Code (for tags: &lt;code&gt;) List (for tags: &lt;ul&gt;&lt;ol&gt;&lt;li&gt;)</em>. The text format must be saved to make these changes active.',
+          'The following tags were permitted by the <em class="placeholder">Restricted HTML</em> text format\'s filter configuration, but no plugin was available that supports them. To ensure the tags remain supported by this text format, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;cite&gt; &lt;dl&gt; &lt;dt&gt; &lt;dd&gt;. The text format must be saved to make these changes active.',
+          'As part of migrating to CKEditor 5, it was found that the <em class="placeholder">Restricted HTML</em> text format\'s HTML filters includes plugins that support the following tags, but not some of their attributes. To ensure these attributes remain supported, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt;. The text format must be saved to make these changes active.',
+        ],
+        'warning' => [
+          'As part of migrating the <em class="placeholder">Restricted HTML</em> text format to CKEditor 5, the following tag(s) were added to <em>Limit allowed HTML tags and correct faulty HTML</em>, because they are needed to provide fundamental CKEditor 5 functionality : &lt;br&gt; &lt;p&gt;. The text format must be saved to make these changes active.',
+        ],
+      ],
       'expected_messages' => [
         'status' => [
-          'The following plugins were enabled to support tags that are allowed by this text format: <em class="placeholder">Link (for tags: &lt;a&gt;) Block quote (for tags: &lt;blockquote&gt;) Code (for tags: &lt;code&gt;) List (for tags: &lt;ul&gt;&lt;ol&gt;&lt;li&gt;)</em>.',
-          'The following tags were permitted by this format\'s filter configuration, but no plugin was available that supports them. To ensure the tags remain supported by this text format, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;cite&gt; &lt;dl&gt; &lt;dt&gt; &lt;dd&gt;.',
-          'This format\'s HTML filters includes plugins that support the following tags, but not some of their attributes. To ensure these attributes remain supported by this text format, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt;.',
-          'The following tag(s) were added to <em>Limit allowed HTML tags and correct faulty HTML</em>, because they are needed to provide fundamental CKEditor 5 functionality : &lt;br&gt; &lt;p&gt;.',
+          'To maintain the capabilities of this text format, <a target="_blank" href="/admin/help/ckeditor5#migration-settings">the CKEditor 5 migration</a> did the following: Enabled these plugins: (<em class="placeholder">Link, Block quote, Code, List</em>). Added these tags/attributes to the Source Editing Plugin\'s <a target="_blank" href="/admin/help/ckeditor5#source-editing">Manually editable HTML tags</a> setting: &lt;cite&gt; &lt;dl&gt; &lt;dt&gt; &lt;dd&gt; &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type&gt; &lt;h2 id&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt;. Additional details are available in your logs.',
+        ],
+        'warning' => [
+          'Updating to CKEditor 5 added support for some previously unsupported tags/attributes. A plugin introduced support for the following: The &lt;br&gt;, &lt;p&gt; tags were added because they are <a target="_blank" href="/admin/help/ckeditor5#required-tags">required by CKEditor 5</a>. The tags <em class="placeholder">&lt;h2&gt;, &lt;h3&gt;, &lt;h4&gt;, &lt;h5&gt;, &lt;h6&gt;, &lt;*&gt;, &lt;cite&gt;, &lt;dl&gt;, &lt;dt&gt;, &lt;dd&gt;, &lt;a&gt;, &lt;blockquote&gt;, &lt;ul&gt;, &lt;ol&gt;, &lt;strong&gt;, &lt;em&gt;, &lt;code&gt;, &lt;li&gt;</em>; These attributes: <em class="placeholder"> id (for &lt;h2&gt;, &lt;h3&gt;, &lt;h4&gt;, &lt;h5&gt;, &lt;h6&gt;), dir (for &lt;*&gt;), lang (for &lt;*&gt;), hreflang (for &lt;a&gt;), href (for &lt;a&gt;), cite (for &lt;blockquote&gt;), type (for &lt;ul&gt;, &lt;ol&gt;), start (for &lt;ol&gt;)</em>; Additional details are available in your logs.',
         ],
       ],
       'expected_post_filter_drop_fundamental_compatibility_violations' => [],
@@ -853,7 +1197,7 @@ class SmartDefaultSettingsTest extends KernelTestBase {
             'numberedList',
             '|',
             'blockQuote',
-            'uploadImage',
+            'drupalInsertImage',
             'insertTable',
             'horizontalLine',
             '|',
@@ -887,6 +1231,7 @@ class SmartDefaultSettingsTest extends KernelTestBase {
       ],
       'expected_superset' => '',
       'expected_fundamental_compatibility_violations' => [],
+      'expected_db_logs' => [],
       'expected_messages' => [],
     ];
 
@@ -947,12 +1292,22 @@ class SmartDefaultSettingsTest extends KernelTestBase {
       'expected_fundamental_compatibility_violations' => [
         '' => 'CKEditor 5 needs at least the &lt;p&gt; and &lt;br&gt; tags to be allowed to be able to function. They are not allowed by the "<em class="placeholder">Limit allowed HTML tags and correct faulty HTML</em>" (<em class="placeholder">filter_html</em>) filter.',
       ],
+      'expected_db_logs' => [
+        'status' => [
+          'The CKEditor 5 migration enabled the following plugins to support tags that are allowed by the <em class="placeholder">Only the &quot;filter_html&quot; filter and its default settings</em> text format: <em class="placeholder">Link (for tags: &lt;a&gt;) Block quote (for tags: &lt;blockquote&gt;) Code (for tags: &lt;code&gt;) List (for tags: &lt;ul&gt;&lt;ol&gt;&lt;li&gt;)</em>. The text format must be saved to make these changes active.',
+          'The following tags were permitted by the <em class="placeholder">Only the &quot;filter_html&quot; filter and its default settings</em> text format\'s filter configuration, but no plugin was available that supports them. To ensure the tags remain supported by this text format, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;cite&gt; &lt;dl&gt; &lt;dt&gt; &lt;dd&gt;. The text format must be saved to make these changes active.',
+          'As part of migrating to CKEditor 5, it was found that the <em class="placeholder">Only the &quot;filter_html&quot; filter and its default settings</em> text format\'s HTML filters includes plugins that support the following tags, but not some of their attributes. To ensure these attributes remain supported, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type=&quot;1 A I&quot;&gt; &lt;h2 id=&quot;jump-*&quot;&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt;. The text format must be saved to make these changes active.',
+        ],
+        'warning' => [
+          'As part of migrating the <em class="placeholder">Only the &quot;filter_html&quot; filter and its default settings</em> text format to CKEditor 5, the following tag(s) were added to <em>Limit allowed HTML tags and correct faulty HTML</em>, because they are needed to provide fundamental CKEditor 5 functionality : &lt;br&gt; &lt;p&gt;. The text format must be saved to make these changes active.',
+        ],
+      ],
       'expected_messages' => [
         'status' => [
-          'The following plugins were enabled to support tags that are allowed by this text format: <em class="placeholder">Link (for tags: &lt;a&gt;) Block quote (for tags: &lt;blockquote&gt;) Code (for tags: &lt;code&gt;) List (for tags: &lt;ul&gt;&lt;ol&gt;&lt;li&gt;)</em>.',
-          'The following tags were permitted by this format\'s filter configuration, but no plugin was available that supports them. To ensure the tags remain supported by this text format, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;cite&gt; &lt;dl&gt; &lt;dt&gt; &lt;dd&gt;.',
-          'This format\'s HTML filters includes plugins that support the following tags, but not some of their attributes. To ensure these attributes remain supported by this text format, the following were added to the Source Editing plugin\'s <em>Manually editable HTML tags</em>: &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type=&quot;1 A I&quot;&gt; &lt;h2 id=&quot;jump-*&quot;&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt;.',
-          'The following tag(s) were added to <em>Limit allowed HTML tags and correct faulty HTML</em>, because they are needed to provide fundamental CKEditor 5 functionality : &lt;br&gt; &lt;p&gt;.',
+          'To maintain the capabilities of this text format, <a target="_blank" href="/admin/help/ckeditor5#migration-settings">the CKEditor 5 migration</a> did the following: Enabled these plugins: (<em class="placeholder">Link, Block quote, Code, List</em>). Added these tags/attributes to the Source Editing Plugin\'s <a target="_blank" href="/admin/help/ckeditor5#source-editing">Manually editable HTML tags</a> setting: &lt;cite&gt; &lt;dl&gt; &lt;dt&gt; &lt;dd&gt; &lt;a hreflang&gt; &lt;blockquote cite&gt; &lt;ul type&gt; &lt;ol type=&quot;1 A I&quot;&gt; &lt;h2 id=&quot;jump-*&quot;&gt; &lt;h3 id&gt; &lt;h4 id&gt; &lt;h5 id&gt; &lt;h6 id&gt;. Additional details are available in your logs.',
+        ],
+        'warning' => [
+          'Updating to CKEditor 5 added support for some previously unsupported tags/attributes. A plugin introduced support for the following: The &lt;br&gt;, &lt;p&gt; tags were added because they are <a target="_blank" href="/admin/help/ckeditor5#required-tags">required by CKEditor 5</a>. The tags <em class="placeholder">&lt;h2&gt;, &lt;h3&gt;, &lt;h4&gt;, &lt;h5&gt;, &lt;h6&gt;, &lt;*&gt;, &lt;cite&gt;, &lt;dl&gt;, &lt;dt&gt;, &lt;dd&gt;, &lt;a&gt;, &lt;blockquote&gt;, &lt;ul&gt;, &lt;ol&gt;, &lt;strong&gt;, &lt;em&gt;, &lt;code&gt;, &lt;li&gt;</em>; These attributes: <em class="placeholder"> id (for &lt;h2&gt;, &lt;h3&gt;, &lt;h4&gt;, &lt;h5&gt;, &lt;h6&gt;), dir (for &lt;*&gt;), lang (for &lt;*&gt;), hreflang (for &lt;a&gt;), href (for &lt;a&gt;), cite (for &lt;blockquote&gt;), type (for &lt;ul&gt;, &lt;ol&gt;), start (for &lt;ol&gt;)</em>; Additional details are available in your logs.',
         ],
       ],
     ];
@@ -964,16 +1319,40 @@ class SmartDefaultSettingsTest extends KernelTestBase {
         'toolbar' => [
           'items' => [
             'textPartLanguage',
+            'style',
+            'blockQuote',
           ],
         ],
         'plugins' => [
           'ckeditor5_language' => [
             'language_list' => 'all',
           ],
+          'ckeditor5_style' => [
+            'styles' => [
+              [
+                'label' => 'Callout',
+                'element' => '<p class="callout">',
+              ],
+              [
+                'label' => 'Interesting & highlighted quote',
+                'element' => '<blockquote class="interesting highlighted">',
+              ],
+              [
+                'label' => 'Famous',
+                'element' => '<blockquote class="famous">',
+              ],
+            ],
+          ],
         ],
       ],
       'expected_superset' => '',
       'expected_fundamental_compatibility_violations' => [],
+      'expected_db_logs' => [
+        'warning' => [
+          'The CKEditor 4 button <em class="placeholder">Llama</em> does not have a known upgrade path. If it allowed editing markup, then you can do so now through the Source Editing functionality.',
+          'The <em class="placeholder">llama_contextual_and_button</em> plugin settings do not have a known upgrade path.',
+        ],
+      ],
       'expected_messages' => [
         'warning' => [
           'The CKEditor 4 button <em class="placeholder">Llama</em> does not have a known upgrade path. If it allowed editing markup, then you can do so now through the Source Editing functionality.',
@@ -982,20 +1361,44 @@ class SmartDefaultSettingsTest extends KernelTestBase {
       ],
     ];
 
-    yield "cke4_plugins_with_settings_for_disabled_plugins can be switched to CKEditor 5 without problems; irrelevant settings are dropped" => [
-      'format_id' => 'cke4_plugins_with_settings_for_disabled_plugins',
+    yield "cke4_stylescombo_span can be switched to CKEditor 5 without problems, only <span> in Source Editing" => [
+      'format_id' => 'cke4_stylescombo_span',
       'filters_to_drop' => [],
       'expected_ckeditor5_settings' => [
         'toolbar' => [
           'items' => [
-            'bold',
+            'style',
+            'sourceEditing',
           ],
         ],
-        'plugins' => [],
+        'plugins' => [
+          'ckeditor5_style' => [
+            'styles' => [
+              [
+                'label' => 'Llama span',
+                'element' => '<span class="llama">',
+              ],
+            ],
+          ],
+          'ckeditor5_sourceEditing' => [
+            'allowed_tags' => [
+              '<span>',
+            ],
+          ],
+        ],
       ],
       'expected_superset' => '',
       'expected_fundamental_compatibility_violations' => [],
-      'expected_messages' => [],
+      'expected_db_logs' => [
+        'status' => [
+          "The following tags were permitted by the <em class=\"placeholder\">A CKEditor 4 configured to have span styles</em> text format's filter configuration, but no plugin was available that supports them. To ensure the tags remain supported by this text format, the following were added to the Source Editing plugin's <em>Manually editable HTML tags</em>: &lt;span&gt;. The text format must be saved to make these changes active.",
+        ],
+      ],
+      'expected_messages' => [
+        'status' => [
+          'To maintain the capabilities of this text format, <a target="_blank" href="/admin/help/ckeditor5#migration-settings">the CKEditor 5 migration</a> did the following:  Added these tags/attributes to the Source Editing Plugin\'s <a target="_blank" href="/admin/help/ckeditor5#source-editing">Manually editable HTML tags</a> setting: &lt;span&gt;. Additional details are available in your logs.',
+        ],
+      ],
     ];
 
     yield "cke4_contrib_plugins_now_in_core can be switched to CKEditor 5 without problems" => [
@@ -1011,7 +1414,29 @@ class SmartDefaultSettingsTest extends KernelTestBase {
       ],
       'expected_superset' => '',
       'expected_fundamental_compatibility_violations' => [],
+      'expected_db_logs' => [],
       'expected_messages' => [],
+    ];
+
+    yield "minimal_ckeditor_wrong_allowed_html does not have sufficient allowed HTML => necessary allowed HTML added (1 upgrade message)" => [
+      'format_id' => 'minimal_ckeditor_wrong_allowed_html',
+      'filters_to_drop' => [],
+      'expected_ckeditor5_settings' => [
+        'toolbar' => [
+          'items' => [
+            'link',
+          ],
+        ],
+        'plugins' => [],
+      ],
+      'expected_superset' => '<a href>',
+      'expected_fundamental_compatibility_violations' => [],
+      'expected_db_logs' => [],
+      'expected_messages' => [
+        'warning' => [
+          0 => 'Updating to CKEditor 5 added support for some previously unsupported tags/attributes. A plugin introduced support for the following:   This attribute: <em class="placeholder"> href (for &lt;a&gt;)</em>; Additional details are available in your logs.',
+        ],
+      ],
     ];
   }
 

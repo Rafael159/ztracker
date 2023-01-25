@@ -59,6 +59,13 @@ class RegistryLegacyTest extends UnitTestCase {
   protected $themeInitialization;
 
   /**
+   * The mocked cache backend.
+   *
+   * @var \Drupal\Core\Cache\CacheBackendInterface|\PHPUnit\Framework\MockObject\MockObject
+   */
+  protected $runtimeCache;
+
+  /**
    * The theme manager.
    *
    * @var \Drupal\Core\Theme\ThemeManagerInterface|\PHPUnit\Framework\MockObject\MockObject
@@ -83,6 +90,7 @@ class RegistryLegacyTest extends UnitTestCase {
     $this->moduleHandler = $this->createMock('Drupal\Core\Extension\ModuleHandlerInterface');
     $this->themeHandler = $this->createMock('Drupal\Core\Extension\ThemeHandlerInterface');
     $this->themeInitialization = $this->createMock('Drupal\Core\Theme\ThemeInitializationInterface');
+    $this->runtimeCache = $this->createMock('Drupal\Core\Cache\CacheBackendInterface');
     $this->themeManager = $this->createMock('Drupal\Core\Theme\ThemeManagerInterface');
     $this->moduleList = $this->createMock(ModuleExtensionList::class);
 
@@ -113,10 +121,12 @@ class RegistryLegacyTest extends UnitTestCase {
 
     // Include the module and theme files so that hook_theme can be called.
     include_once $this->root . '/core/modules/system/tests/modules/theme_legacy_test/theme_legacy_test.module';
-    $this->moduleHandler->expects($this->once())
-      ->method('getImplementations')
+    $this->moduleHandler->expects($this->atLeastOnce())
+      ->method('invokeAllWith')
       ->with('theme')
-      ->will($this->returnValue(['theme_legacy_test']));
+      ->willReturnCallback(function (string $hook, callable $callback) {
+        $callback(function () {}, 'theme_legacy_test');
+      });
     $this->moduleHandler->expects($this->atLeastOnce())
       ->method('getModuleList')
       ->willReturn([]);
@@ -153,8 +163,7 @@ class RegistryLegacyTest extends UnitTestCase {
         $this->moduleHandler,
         $this->themeHandler,
         $this->themeInitialization,
-        NULL,
-        NULL,
+        $this->runtimeCache,
         $this->moduleList,
       ])
       ->getMock();

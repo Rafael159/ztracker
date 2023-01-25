@@ -69,18 +69,6 @@ function editor_element_info_alter(&$types) {
 }
 
 /**
- * Implements hook_field_formatter_info_alter().
- *
- * @see quickedit_field_formatter_info_alter()
- */
-function editor_field_formatter_info_alter(&$info) {
-  // Update \Drupal\text\Plugin\Field\FieldFormatter\TextDefaultFormatter's
-  // annotation to indicate that it supports the 'editor' in-place editor
-  // provided by this module.
-  $info['text_default']['quickedit'] = ['editor' => 'editor'];
-}
-
-/**
  * Implements hook_form_FORM_ID_alter().
  */
 function editor_form_filter_admin_overview_alter(&$form, FormStateInterface $form_state) {
@@ -370,7 +358,7 @@ function editor_entity_insert(EntityInterface $entity) {
     return;
   }
   $referenced_files_by_field = _editor_get_file_uuids_by_field($entity);
-  foreach ($referenced_files_by_field as $field => $uuids) {
+  foreach ($referenced_files_by_field as $uuids) {
     _editor_record_file_usage($uuids, $entity);
   }
 }
@@ -388,7 +376,7 @@ function editor_entity_update(EntityInterface $entity) {
   // deletion of previous file usages are necessary.
   if (!empty($entity->original) && $entity->getRevisionId() != $entity->original->getRevisionId()) {
     $referenced_files_by_field = _editor_get_file_uuids_by_field($entity);
-    foreach ($referenced_files_by_field as $field => $uuids) {
+    foreach ($referenced_files_by_field as $uuids) {
       _editor_record_file_usage($uuids, $entity);
     }
   }
@@ -428,7 +416,7 @@ function editor_entity_delete(EntityInterface $entity) {
     return;
   }
   $referenced_files_by_field = _editor_get_file_uuids_by_field($entity);
-  foreach ($referenced_files_by_field as $field => $uuids) {
+  foreach ($referenced_files_by_field as $uuids) {
     _editor_delete_file_usage($uuids, $entity, 0);
   }
 }
@@ -442,7 +430,7 @@ function editor_entity_revision_delete(EntityInterface $entity) {
     return;
   }
   $referenced_files_by_field = _editor_get_file_uuids_by_field($entity);
-  foreach ($referenced_files_by_field as $field => $uuids) {
+  foreach ($referenced_files_by_field as $uuids) {
     _editor_delete_file_usage($uuids, $entity, 1);
   }
 }

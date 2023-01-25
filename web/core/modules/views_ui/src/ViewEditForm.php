@@ -605,8 +605,8 @@ class ViewEditForm extends ViewFormBase {
     $build['columns']['second']['header'] = $this->getFormBucket($view, 'header', $display);
     $build['columns']['second']['footer'] = $this->getFormBucket($view, 'footer', $display);
     $build['columns']['second']['empty'] = $this->getFormBucket($view, 'empty', $display);
-    $build['columns']['third']['arguments'] = $this->getFormBucket($view, 'argument', $display);
     $build['columns']['third']['relationships'] = $this->getFormBucket($view, 'relationship', $display);
+    $build['columns']['third']['arguments'] = $this->getFormBucket($view, 'argument', $display);
 
     return $build;
   }
@@ -793,7 +793,10 @@ class ViewEditForm extends ViewFormBase {
         '#value' => $this->t('Add @display', ['@display' => $label]),
         '#limit_validation_errors' => [],
         '#submit' => ['::submitDisplayAdd', '::submitDelayDestination'],
-        '#attributes' => ['class' => ['add-display']],
+        '#attributes' => [
+          'class' => ['add-display'],
+          'data-drupal-dropdown-label' => $label,
+        ],
         // Allow JavaScript to remove the 'Add ' prefix from the button label when
         // placing the button in an "Add" dropdown menu.
         '#process' => array_merge(['views_ui_form_button_was_clicked'], $this->elementInfo->getInfoProperty('submit', '#process', [])),

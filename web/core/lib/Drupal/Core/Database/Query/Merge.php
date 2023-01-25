@@ -134,6 +134,8 @@ class Merge extends Query implements ConditionInterface {
    *   Array of database options.
    */
   public function __construct(Connection $connection, $table, array $options = []) {
+    // @todo Remove $options['return'] in Drupal 11.
+    // @see https://www.drupal.org/project/drupal/issues/3256524
     $options['return'] = Database::RETURN_AFFECTED;
     parent::__construct($connection, $options);
     $this->table = $table;
@@ -354,7 +356,7 @@ class Merge extends Query implements ConditionInterface {
   /**
    * Executes the merge database query.
    *
-   * @return
+   * @return int|null
    *   One of the following values:
    *   - Merge::STATUS_INSERT: If the entry does not already exist,
    *     and an INSERT query is executed.
@@ -418,6 +420,7 @@ class Merge extends Query implements ConditionInterface {
       }
       throw $e;
     }
+    return NULL;
   }
 
 }

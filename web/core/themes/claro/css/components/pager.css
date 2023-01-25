@@ -13,7 +13,9 @@
 :root {
   /**
   * Pager.
-  */ /* --space-m Ã— 2 */ /* 2px */
+  */
+  /* --space-m Ã— 2 */
+  /* 2px */
 }
 
 .pager {
@@ -69,7 +71,7 @@
 .pager__link:hover,
 .pager__link.is-active:hover {
   color: #55565b;
-  background: #e6ecf8;
+  background: #e5edff;
 }
 
 .pager__link--action-link {
@@ -82,7 +84,7 @@
 .pager__item--current {
   color: #fff;
   border: 0.125rem solid transparent;
-  background: #003cc5;
+  background: #003ecc;
 }
 
 .pager__item--first .pager__link::before {

@@ -31,6 +31,16 @@ class SiteMaintenanceTest extends BrowserTestBase {
 
   protected $adminUser;
 
+  /**
+   * User allowed to access site in maintenance mode.
+   *
+   * @var \Drupal\user\Entity\User
+   */
+  protected $user;
+
+  /**
+   * {@inheritdoc}
+   */
   protected function setUp(): void {
     parent::setUp();
 
@@ -63,8 +73,7 @@ class SiteMaintenanceTest extends BrowserTestBase {
 
     $this->drupalGet(Url::fromRoute('user.page'));
     // JS should be aggregated, so drupal.js is not in the page source.
-    $links = $this->xpath('//script[contains(@src, :href)]', [':href' => '/core/misc/drupal.js']);
-    $this->assertFalse(isset($links[0]), 'script /core/misc/drupal.js not in page');
+    $this->assertSession()->elementNotExists('xpath', '//script[contains(@src, "/core/misc/drupal.js")]');
     // Turn on maintenance mode.
     $edit = [
       'maintenance_mode' => 1,
@@ -78,8 +87,7 @@ class SiteMaintenanceTest extends BrowserTestBase {
 
     $this->drupalGet(Url::fromRoute('user.page'));
     // JS should not be aggregated, so drupal.js is expected in the page source.
-    $links = $this->xpath('//script[contains(@src, :href)]', [':href' => '/core/misc/drupal.js']);
-    $this->assertTrue(isset($links[0]), 'script /core/misc/drupal.js in page');
+    $this->assertSession()->elementExists('xpath', '//script[contains(@src, "/core/misc/drupal.js")]');
     $this->assertSession()->pageTextContains($admin_message);
     $this->assertSession()->linkExists('Go online.');
     $this->assertSession()->linkByHrefExists(Url::fromRoute('system.site_maintenance_mode')->toString());
@@ -148,11 +156,11 @@ class SiteMaintenanceTest extends BrowserTestBase {
     $this->submitForm([], 'Log in');
     $this->assertSession()->pageTextContains($user_message);
 
-    // Regression test to check if title displays in Bartik on maintenance page.
-    \Drupal::service('theme_installer')->install(['bartik']);
-    $this->config('system.theme')->set('default', 'bartik')->save();
+    // Check if title displays in Olivero on maintenance page.
+    \Drupal::service('theme_installer')->install(['olivero']);
+    $this->config('system.theme')->set('default', 'olivero')->save();
 
-    // Logout and verify that offline message is displayed in Bartik.
+    // Logout and verify that offline message is displayed in Olivero.
     $this->drupalLogout();
     $this->drupalGet('');
     $this->assertEquals('Site under maintenance', $this->cssSelect('main h1')[0]->getText());

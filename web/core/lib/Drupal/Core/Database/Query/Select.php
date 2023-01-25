@@ -93,8 +93,9 @@ class Select extends Query implements SelectInterface {
   protected $range;
 
   /**
-   * An array whose elements specify a query to UNION, and the UNION type. The
-   * 'type' key may be '', 'ALL', or 'DISTINCT' to represent a 'UNION',
+   * An array whose elements specify a query to UNION, and the UNION type.
+   *
+   * The 'type' key may be '', 'ALL', or 'DISTINCT' to represent a 'UNION',
    * 'UNION ALL', or 'UNION DISTINCT' statement, respectively.
    *
    * All entries in this array will be applied from front to back, with the
@@ -131,6 +132,8 @@ class Select extends Query implements SelectInterface {
    *   Array of query options.
    */
   public function __construct(Connection $connection, $table, $alias = NULL, $options = []) {
+    // @todo Remove $options['return'] in Drupal 11.
+    // @see https://www.drupal.org/project/drupal/issues/3256524
     $options['return'] = Database::RETURN_STATEMENT;
     parent::__construct($connection, $options);
     $conjunction = $options['conjunction'] ?? 'AND';

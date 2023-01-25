@@ -42,8 +42,11 @@ class TranslatedViewTest extends UITestBase {
    */
   protected $adminUser;
 
-  protected function setUp($import_test_views = TRUE): void {
-    parent::setUp($import_test_views);
+  /**
+   * {@inheritdoc}
+   */
+  protected function setUp($import_test_views = TRUE, $modules = []): void {
+    parent::setUp($import_test_views, $modules);
 
     $permissions = [
       'administer site configuration',

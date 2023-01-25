@@ -108,7 +108,7 @@ class ImageTest extends UnitTestCase {
 
     $this->toolkit->expects($this->any())
       ->method('getPluginId')
-      ->will($this->returnValue('gd'));
+      ->willReturn('gd');
 
     if (!$load_expected) {
       $this->toolkit->expects($this->never())
@@ -116,6 +116,8 @@ class ImageTest extends UnitTestCase {
     }
 
     $this->image = new Image($this->toolkit, $this->source);
+
+    return $this->image;
   }
 
   /**
@@ -133,13 +135,15 @@ class ImageTest extends UnitTestCase {
 
     $this->toolkit->expects($this->any())
       ->method('getPluginId')
-      ->will($this->returnValue('gd'));
+      ->willReturn('gd');
 
     $this->toolkit->expects($this->any())
       ->method('getToolkitOperation')
-      ->will($this->returnValue($this->toolkitOperation));
+      ->willReturn($this->toolkitOperation);
 
     $this->image = new Image($this->toolkit, $this->source);
+
+    return $this->image;
   }
 
   /**
@@ -208,12 +212,9 @@ class ImageTest extends UnitTestCase {
     $toolkit = $this->getToolkitMock();
     $toolkit->expects($this->once())
       ->method('save')
-      ->will($this->returnValue(TRUE));
+      ->willReturn(TRUE);
 
-    $image = $this->getMockBuilder('Drupal\Core\Image\Image')
-      ->onlyMethods([])
-      ->setConstructorArgs([$toolkit, $this->image->getSource()])
-      ->getMock();
+    $image = new Image($toolkit, $this->image->getSource());
 
     $file_system = $this->prophesize(FileSystemInterface::class);
     $file_system->chmod($this->image->getSource())
@@ -239,7 +240,7 @@ class ImageTest extends UnitTestCase {
     // This will fail if save() method isn't called on the toolkit.
     $this->toolkit->expects($this->once())
       ->method('save')
-      ->will($this->returnValue(FALSE));
+      ->willReturn(FALSE);
 
     $this->assertFalse($this->image->save());
   }
@@ -253,12 +254,9 @@ class ImageTest extends UnitTestCase {
     $toolkit = $this->getToolkitMock();
     $toolkit->expects($this->once())
       ->method('save')
-      ->will($this->returnValue(TRUE));
+      ->willReturn(TRUE);
 
-    $image = $this->getMockBuilder('Drupal\Core\Image\Image')
-      ->onlyMethods([])
-      ->setConstructorArgs([$toolkit, $this->image->getSource()])
-      ->getMock();
+    $image = new Image($toolkit, $this->image->getSource());
 
     $file_system = $this->prophesize(FileSystemInterface::class);
     $file_system->chmod($this->image->getSource())

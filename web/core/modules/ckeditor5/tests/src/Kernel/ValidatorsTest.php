@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Drupal\Tests\ckeditor5\Kernel;
 
 use Drupal\Component\Utility\Html;
+use Drupal\Core\Entity\Entity\EntityViewMode;
 use Drupal\editor\EditorInterface;
 use Drupal\editor\Entity\Editor;
 use Drupal\filter\Entity\FilterFormat;
@@ -13,7 +14,7 @@ use Drupal\KernelTests\KernelTestBase;
 use Drupal\Tests\SchemaCheckTestTrait;
 use Symfony\Component\Yaml\Yaml;
 
-// cspell:ignore onhover
+// cspell:ignore onhover baguette
 
 /**
  * @covers \Drupal\ckeditor5\Plugin\Validation\Constraint\ToolbarItemConstraintValidator
@@ -21,6 +22,7 @@ use Symfony\Component\Yaml\Yaml;
  * @covers \Drupal\ckeditor5\Plugin\Validation\Constraint\EnabledConfigurablePluginsConstraintValidator
  * @covers \Drupal\ckeditor5\Plugin\Editor\CKEditor5::validatePair()
  * @covers \Drupal\ckeditor5\Plugin\Validation\Constraint\FundamentalCompatibilityConstraintValidator
+ * @covers \Drupal\ckeditor5\Plugin\Validation\Constraint\CKEditor5MediaAndFilterSettingsInSyncConstraintValidator
  * @group ckeditor5
  */
 class ValidatorsTest extends KernelTestBase {
@@ -43,7 +45,6 @@ class ValidatorsTest extends KernelTestBase {
     'ckeditor5_plugin_conditions_test',
     'editor',
     'filter',
-    'filter_test',
     'media',
     'media_library',
     'views',
@@ -61,6 +62,9 @@ class ValidatorsTest extends KernelTestBase {
    * @covers \Drupal\ckeditor5\Plugin\Validation\Constraint\ToolbarItemConstraintValidator
    * @covers \Drupal\ckeditor5\Plugin\Validation\Constraint\ToolbarItemDependencyConstraintValidator
    * @covers \Drupal\ckeditor5\Plugin\Validation\Constraint\EnabledConfigurablePluginsConstraintValidator
+   * @covers \Drupal\ckeditor5\Plugin\Validation\Constraint\CKEditor5ElementConstraintValidator
+   * @covers \Drupal\ckeditor5\Plugin\Validation\Constraint\StyleSensibleElementConstraintValidator
+   * @covers \Drupal\ckeditor5\Plugin\Validation\Constraint\UniqueLabelInListConstraintValidator
    * @dataProvider provider
    *
    * @param array $ckeditor5_settings
@@ -248,19 +252,6 @@ class ValidatorsTest extends KernelTestBase {
       ],
     ];
 
-    $data['uploadImage toolbar item condition not met: image uploads must be enabled'] = [
-      'settings' => [
-        'toolbar' => [
-          'items' => [
-            'uploadImage',
-          ],
-        ],
-        'plugins' => [],
-      ],
-      'violations' => [
-        'settings.toolbar.items.0' => 'The <em class="placeholder">Image upload</em> toolbar item requires image uploads to be enabled.',
-      ],
-    ];
     $data['drupalMedia toolbar item condition not met: media filter enabled'] = [
       'settings' => [
         'toolbar' => [
@@ -326,6 +317,232 @@ class ValidatorsTest extends KernelTestBase {
       ],
       'violations' => [],
     ];
+    $data['INVALID: Style plugin with no styles'] = [
+      'settings' => [
+        'toolbar' => [
+          'items' => [
+            'style',
+          ],
+        ],
+        'plugins' => [
+          'ckeditor5_style' => [
+            'styles' => [],
+          ],
+        ],
+      ],
+      'violations' => [
+        'settings.plugins.ckeditor5_style.styles' => 'Enable at least one style, otherwise disable the Style plugin.',
+      ],
+    ];
+    $data['INVALID: Style plugin configured to add class to GHS-supported non-HTML5 tag'] = [
+      'settings' => [
+        'toolbar' => [
+          'items' => [
+            'style',
+            'sourceEditing',
+          ],
+        ],
+        'plugins' => [
+          'ckeditor5_sourceEditing' => [
+            'allowed_tags' => [
+              '<foo>',
+            ],
+          ],
+          'ckeditor5_style' => [
+            'styles' => [
+              [
+                'label' => 'Barry foo',
+                'element' => '<foo class="bar">',
+              ],
+            ],
+          ],
+        ],
+      ],
+      'violations' => [
+        'settings.plugins.ckeditor5_style.styles.0.element' => 'A style can only be specified for an HTML 5 tag. <code>&lt;foo&gt;</code> is not an HTML5 tag.',
+      ],
+    ];
+    $data['INVALID: Style plugin configured to add class to plugin-supported non-HTML5 tag'] = [
+      'settings' => [
+        'toolbar' => [
+          'items' => [
+            'style',
+          ],
+        ],
+        'plugins' => [
+          'ckeditor5_style' => [
+            'styles' => [
+              [
+                'label' => 'Sensational media',
+                'element' => '<drupal-media class="sensational">',
+              ],
+            ],
+          ],
+          'media_media' => [
+            'allow_view_mode_override' => FALSE,
+          ],
+        ],
+      ],
+      'violations' => [
+        'settings.plugins.ckeditor5_style.styles.0.element' => 'A style can only be specified for an HTML 5 tag. <code>&lt;drupal-media&gt;</code> is not an HTML5 tag.',
+      ],
+    ];
+    $data['INVALID: Style plugin configured to add class that is supported by a disabled plugin'] = [
+      'settings' => [
+        'toolbar' => [
+          'items' => [
+            'style',
+          ],
+        ],
+        'plugins' => [
+          'ckeditor5_style' => [
+            'styles' => [
+              [
+                'label' => 'Justified paragraph',
+                'element' => '<p class="text-align-justify">',
+              ],
+            ],
+          ],
+        ],
+      ],
+      'violations' => [
+        'settings.plugins.ckeditor5_style.styles.0.element' => 'A style must only specify classes not supported by other plugins. The <code>text-align-justify</code> classes on <code>&lt;p&gt;</code> are supported by the <em class="placeholder">Alignment</em> plugin. Remove this style and enable that plugin instead.',
+      ],
+    ];
+    $data['INVALID: Style plugin configured to add class that is supported by an enabled plugin if its configuration were different'] = [
+      'settings' => [
+        'toolbar' => [
+          'items' => [
+            'style',
+            'alignment',
+          ],
+        ],
+        'plugins' => [
+          'ckeditor5_alignment' => [
+            'enabled_alignments' => ['center'],
+          ],
+          'ckeditor5_style' => [
+            'styles' => [
+              [
+                'label' => 'Justified paragraph',
+                'element' => '<p class="text-align-justify">',
+              ],
+            ],
+          ],
+        ],
+      ],
+      'violations' => [],
+    ];
+    $data['INVALID: Style plugin configured to add class that is supported by an enabled plugin'] = [
+      'settings' => [
+        'toolbar' => [
+          'items' => [
+            'style',
+            'alignment',
+          ],
+        ],
+        'plugins' => [
+          'ckeditor5_alignment' => [
+            'enabled_alignments' => ['justify'],
+          ],
+          'ckeditor5_style' => [
+            'styles' => [
+              [
+                'label' => 'Justified paragraph',
+                'element' => '<p class="text-align-justify">',
+              ],
+            ],
+          ],
+        ],
+      ],
+      'violations' => [
+        'settings.plugins.ckeditor5_style.styles.0.element' => 'A style must only specify classes not supported by other plugins. The <code>text-align-justify</code> classes on <code>&lt;p&gt;</code> are already supported by the enabled <em class="placeholder">Alignment</em> plugin.',
+      ],
+    ];
+    $data['INVALID: Style plugin has multiple styles with same label'] = [
+      'settings' => [
+        'toolbar' => [
+          'items' => [
+            'blockQuote',
+            'style',
+          ],
+        ],
+        'plugins' => [
+          'ckeditor5_style' => [
+            'styles' => [
+              0 => [
+                'label' => 'Highlighted',
+                'element' => '<p class="highlighted">',
+              ],
+              1 => [
+                'label' => 'Highlighted',
+                'element' => '<blockquote class="highlighted">',
+              ],
+            ],
+          ],
+        ],
+      ],
+      'violations' => [
+        'settings.plugins.ckeditor5_style.styles' => 'The label <em class="placeholder">Highlighted</em> is not unique.',
+      ],
+    ];
+    $data['INVALID: Style plugin has styles with invalid elements'] = [
+      'settings' => [
+        'toolbar' => [
+          'items' => [
+            'blockQuote',
+            'style',
+          ],
+        ],
+        'plugins' => [
+          'ckeditor5_style' => [
+            'styles' => [
+              0 => [
+                'label' => 'missing class attribute',
+                'element' => '<p>',
+              ],
+              1 => [
+                'label' => 'class attribute present but no allowed values listed',
+                'element' => '<blockquote class="">',
+              ],
+            ],
+          ],
+        ],
+      ],
+      'violations' => [
+        'settings.plugins.ckeditor5_style.styles.0.element' => 'The following tag is missing the required attribute <code>class</code>: <code>&lt;p&gt;</code>.',
+        'settings.plugins.ckeditor5_style.styles.1.element' => 'The following tag does not have the minimum of 1 allowed values for the required attribute <code>class</code>: <code>&lt;blockquote class=&quot;&quot;&gt;</code>.',
+      ],
+    ];
+    $data['VALID: Style plugin has multiple styles with different labels'] = [
+      'settings' => [
+        'toolbar' => [
+          'items' => [
+            'blockQuote',
+            'style',
+          ],
+        ],
+        'plugins' => [
+          'ckeditor5_style' => [
+            'styles' => [
+              [
+                'label' => 'Callout',
+                'element' => '<p class="callout">',
+              ],
+              [
+                'label' => 'Interesting & highlighted quote',
+                'element' => '<blockquote class="interesting highlighted">',
+              ],
+              [
+                'label' => 'Famous',
+                'element' => '<blockquote class="famous">',
+              ],
+            ],
+          ],
+        ],
+      ],
+      'violations' => [],
+    ];
 
     return $data;
   }
@@ -355,6 +572,20 @@ class ValidatorsTest extends KernelTestBase {
       'settings' => $ckeditor5_settings,
       'image_upload' => $editor_image_upload_settings,
     ]);
+    EntityViewMode::create([
+      'id' => 'media.view_mode_1',
+      'targetEntityType' => 'media',
+      'status' => TRUE,
+      'enabled' => TRUE,
+      'label' => 'View Mode 1',
+    ])->save();
+    EntityViewMode::create([
+      'id' => 'media.view_mode_2',
+      'targetEntityType' => 'media',
+      'status' => TRUE,
+      'enabled' => TRUE,
+      'label' => 'View Mode 2',
+    ])->save();
     assert($text_editor instanceof EditorInterface);
     $this->assertConfigSchema(
       $this->typedConfig,
@@ -375,6 +606,71 @@ class ValidatorsTest extends KernelTestBase {
   public function providerPair(): array {
     // cspell:ignore donk
     $data = [];
+    $data['INVALID: allow_view_mode_override condition not met: filter must be configured to allow 2 or more view modes'] = [
+      'settings' => [
+        'toolbar' => [
+          'items' => [],
+        ],
+        'plugins' => [
+          'media_media' => [
+            'allow_view_mode_override' => TRUE,
+          ],
+        ],
+      ],
+      'image_upload' => [
+        'status' => FALSE,
+      ],
+      'filters' => [
+        'media_embed' => [
+          'id' => 'media_embed',
+          'provider' => 'media',
+          'status' => TRUE,
+          'weight' => 0,
+          'settings' => [
+            'default_view_mode' => 'default',
+            'allowed_view_modes' => [],
+            'allowed_media_types' => [],
+          ],
+        ],
+      ],
+      'violations' => [
+        '' => 'The CKEditor 5 "<em class="placeholder">Media</em>" plugin\'s "<em class="placeholder">Allow the user to override the default view mode</em>" setting should be in sync with the "<em class="placeholder">Embed media</em>" filter\'s "<em class="placeholder">View modes selectable in the &quot;Edit media&quot; dialog</em>" setting: when checked, two or more view modes must be allowed by the filter.',
+      ],
+    ];
+    $data['VALID: allow_view_mode_override condition met: filter must be configured to allow 2 or more view modes'] = [
+      'settings' => [
+        'toolbar' => [
+          'items' => [
+            'drupalMedia',
+          ],
+        ],
+        'plugins' => [
+          'media_media' => [
+            'allow_view_mode_override' => TRUE,
+          ],
+        ],
+      ],
+      'image_upload' => [
+        'status' => FALSE,
+      ],
+      'filters' => [
+        'media_embed' => [
+          'id' => 'media_embed',
+          'provider' => 'media',
+          'status' => TRUE,
+          'weight' => 0,
+          'settings' => [
+            'default_view_mode' => 'view_mode_1',
+            'allowed_view_modes' => [
+              'view_mode_1' => 'view_mode_1',
+              'view_mode_2' => 'view_mode_2',
+            ],
+            'allowed_media_types' => [],
+          ],
+        ],
+      ],
+      'violations' => [],
+    ];
     $data['VALID: legacy format: filter_autop'] = [
       'settings' => [
         'toolbar' => [
@@ -461,33 +757,6 @@ class ValidatorsTest extends KernelTestBase {
         ],
       ],
       'violations' => [],
-    ];
-    $data['INVALID: forbidden tags'] = [
-      'settings' => [
-        'toolbar' => [
-          'items' => [],
-        ],
-        'plugins' => [],
-      ],
-      'image_upload' => [
-        'status' => FALSE,
-      ],
-      'filters' => [
-        'filter_test_restrict_tags_and_attributes' => [
-          'id' => 'filter_test_restrict_tags_and_attributes',
-          'provider' => 'filter_test',
-          'status' => TRUE,
-          'weight' => 0,
-          'settings' => [
-            'restrictions' => [
-              'forbidden_tags' => ['p' => FALSE],
-            ],
-          ],
-        ],
-      ],
-      'violations' => [
-        '' => 'CKEditor 5 needs at least the &lt;p&gt; and &lt;br&gt; tags to be allowed to be able to function. They are forbidden by the "<em class="placeholder">Tag and attribute restricting filter</em>" (<em class="placeholder">filter_test_restrict_tags_and_attributes</em>) filter.',
-      ],
     ];
     $restricted_html_format_filters = Yaml::parseFile(__DIR__ . '/../../../../../profiles/standard/config/install/filter.format.restricted_html.yml')['filters'];
     $data['INVALID: the default restricted_html text format'] = [
@@ -671,7 +940,7 @@ class ValidatorsTest extends KernelTestBase {
               // Tag + attributes; all supported by an ineligible disabled
               // plugin (has no toolbar item, has conditions).
               '<img src>',
-              // Tag + attributes; all supported by disabled plugin.
+              // Tag + attributes; attributes supported by disabled plugin.
               '<code class="language-*">',
               // Tag + attributes; tag already supported by enabled plugin,
               // attributes supported by disabled plugin
@@ -679,6 +948,9 @@ class ValidatorsTest extends KernelTestBase {
               // Tag + attributes; tag already supported by enabled plugin,
               // attribute not supported by no plugin.
               '<a hreflang>',
+              // Tag-only; supported by no plugin (only attributes on tag
+              // supported by a plugin).
+              '<span>',
             ],
           ],
         ],
@@ -691,8 +963,9 @@ class ValidatorsTest extends KernelTestBase {
         'settings.plugins.ckeditor5_sourceEditing.allowed_tags.0' => 'The following tag(s) are already supported by enabled plugins and should not be added to the Source Editing "Manually editable HTML tags" field: <em class="placeholder">Bold (&lt;strong&gt;)</em>.',
         'settings.plugins.ckeditor5_sourceEditing.allowed_tags.1' => 'The following tag(s) are already supported by available plugins and should not be added to the Source Editing "Manually editable HTML tags" field. Instead, enable the following plugins to support these tags: <em class="placeholder">Table (&lt;table&gt;)</em>.',
         'settings.plugins.ckeditor5_sourceEditing.allowed_tags.3' => 'The following attribute(s) are already supported by enabled plugins and should not be added to the Source Editing "Manually editable HTML tags" field: <em class="placeholder">Language (&lt;span lang&gt;)</em>.',
-        'settings.plugins.ckeditor5_sourceEditing.allowed_tags.5' => 'The following tag(s) are already supported by available plugins and should not be added to the Source Editing "Manually editable HTML tags" field. Instead, enable the following plugins to support these tags: <em class="placeholder">Code Block (&lt;code class=&quot;language-*&quot;&gt;)</em>.',
-        'settings.plugins.ckeditor5_sourceEditing.allowed_tags.6' => 'The following attribute(s) are already supported by available plugins and should not be added to the Source Editing "Manually editable HTML tags" field. Instead, enable the following plugins to support these attributes: <em class="placeholder">Alignment (&lt;h2 class=&quot;text-align-center&quot;&gt;), Align center (&lt;h2 class=&quot;text-align-center&quot;&gt;)</em>.',
+        'settings.plugins.ckeditor5_sourceEditing.allowed_tags.5' => 'The following attribute(s) are already supported by available plugins and should not be added to the Source Editing "Manually editable HTML tags" field. Instead, enable the following plugins to support these attributes: <em class="placeholder">Code Block (&lt;code class=&quot;language-*&quot;&gt;)</em>.',
+        // @todo "Style" should be removed from the suggestions in https://www.drupal.org/project/drupal/issues/3271179
+        'settings.plugins.ckeditor5_sourceEditing.allowed_tags.6' => 'The following attribute(s) are already supported by available plugins and should not be added to the Source Editing "Manually editable HTML tags" field. Instead, enable the following plugins to support these attributes: <em class="placeholder">Style (&lt;h2 class=&quot;text-align-center&quot;&gt;), Alignment (&lt;h2 class=&quot;text-align-center&quot;&gt;)</em>.',
       ],
     ];
     $data['INVALID some invalid Source Editable tags provided by plugin and another available in a not enabled plugin'] = [
@@ -703,7 +976,6 @@ class ValidatorsTest extends KernelTestBase {
             'bold',
             'italic',
             'sourceEditing',
-            'textPartLanguage',
           ],
         ],
         'plugins' => [
@@ -715,9 +987,6 @@ class ValidatorsTest extends KernelTestBase {
               'heading5',
               'heading6',
             ],
-          ],
-          'ckeditor5_language' => [
-            'language_list' => 'un',
           ],
           'ckeditor5_sourceEditing' => [
             'allowed_tags' => [
@@ -745,11 +1014,11 @@ class ValidatorsTest extends KernelTestBase {
       ],
     ];
 
-    $data['INVALID: uploadImage toolbar item condition NOT met: image uploads must be enabled'] = [
+    $data['INVALID: drupalInsertImage without required dependent plugin configuration'] = [
       'settings' => [
         'toolbar' => [
           'items' => [
-            'uploadImage',
+            'drupalInsertImage',
           ],
         ],
         'plugins' => [],
@@ -759,14 +1028,14 @@ class ValidatorsTest extends KernelTestBase {
       ],
       'filters' => [],
       'violations' => [
-        'settings.toolbar.items.0' => 'The <em class="placeholder">Image upload</em> toolbar item requires image uploads to be enabled.',
+        'settings.plugins.ckeditor5_imageResize' => 'Configuration for the enabled plugin "<em class="placeholder">Image resize</em>" (<em class="placeholder">ckeditor5_imageResize</em>) is missing.',
       ],
     ];
-    $data['VALID: uploadImage toolbar item condition met: image uploads must be enabled'] = [
+    $data['VALID: drupalInsertImage toolbar item without image upload'] = [
       'settings' => [
         'toolbar' => [
           'items' => [
-            'uploadImage',
+            'drupalInsertImage',
           ],
         ],
         'plugins' => [
@@ -776,6 +1045,25 @@ class ValidatorsTest extends KernelTestBase {
         ],
       ],
       'image_upload' => [
+        'status' => FALSE,
+      ],
+      'filters' => [],
+      'violations' => [],
+    ];
+    $data['VALID: drupalInsertImage image upload enabled'] = [
+      'settings' => [
+        'toolbar' => [
+          'items' => [
+            'drupalInsertImage',
+          ],
+        ],
+        'plugins' => [
+          'ckeditor5_imageResize' => [
+            'allow_resize' => FALSE,
+          ],
+        ],
+      ],
+      'image' => [
         'status' => TRUE,
       ],
       'filters' => [],
@@ -905,6 +1193,7 @@ class ValidatorsTest extends KernelTestBase {
         ],
       ],
       'violations' => [
+        'filters.filter_html' => 'The current CKEditor 5 build requires the following elements and attributes: <br><code>&lt;br&gt; &lt;p onhover style&gt; &lt;* dir=&quot;ltr rtl&quot; lang&gt; &lt;img on*&gt; &lt;blockquote style&gt; &lt;marquee&gt; &lt;a onclick=&quot;javascript:*&quot;&gt; &lt;code style=&quot;foo: bar;&quot;&gt;</code><br>The following elements are missing: <br><code>&lt;p onhover style&gt; &lt;img on*&gt; &lt;blockquote style&gt; &lt;code style=&quot;foo: bar;&quot;&gt;</code>',
         'settings.plugins.ckeditor5_sourceEditing.allowed_tags.0' => 'The following tag in the Source Editing "Manually editable HTML tags" field is a security risk: <em class="placeholder">&lt;p onhover&gt;</em>.',
         'settings.plugins.ckeditor5_sourceEditing.allowed_tags.1' => 'The following tag in the Source Editing "Manually editable HTML tags" field is a security risk: <em class="placeholder">&lt;img on*&gt;</em>.',
         'settings.plugins.ckeditor5_sourceEditing.allowed_tags.2' => 'The following tag in the Source Editing "Manually editable HTML tags" field is a security risk: <em class="placeholder">&lt;blockquote style&gt;</em>.',
@@ -932,7 +1221,247 @@ class ValidatorsTest extends KernelTestBase {
       'filters' => [],
       'violations' => [],
     ];
-
+    $data['INVALID: Style plugin configured to add class to unsupported tag'] = [
+      'settings' => [
+        'toolbar' => [
+          'items' => [
+            'style',
+          ],
+        ],
+        'plugins' => [
+          'ckeditor5_style' => [
+            'styles' => [
+              [
+                'label' => 'Highlighted',
+                'element' => '<blockquote class="highlighted">',
+              ],
+            ],
+          ],
+        ],
+      ],
+      'image_upload' => [
+        'status' => FALSE,
+      ],
+      'filters' => [
+        'filter_html' => [
+          'id' => 'filter_html',
+          'provider' => 'filter',
+          'status' => TRUE,
+          'weight' => 0,
+          'settings' => [
+            'allowed_html' => '<p> <br> <blockquote class="highlighted">',
+            'filter_html_help' => TRUE,
+            'filter_html_nofollow' => TRUE,
+          ],
+        ],
+      ],
+      'violations' => [
+        'settings.plugins.ckeditor5_style' => 'The <em class="placeholder">Style</em> plugin needs another plugin to create <code>&lt;blockquote&gt;</code>, for it to be able to create the following attributes: <code>&lt;blockquote class=&quot;highlighted&quot;&gt;</code>. Enable a plugin that supports creating this tag. If none exists, you can configure the Source Editing plugin to support it.',
+      ],
+    ];
+    $data['INVALID: Style plugin configured to add class already added by an other plugin'] = [
+      'settings' => [
+        'toolbar' => [
+          'items' => [
+            'alignment',
+            'style',
+          ],
+        ],
+        'plugins' => [
+          'ckeditor5_alignment' => [
+            'enabled_alignments' => ['justify'],
+          ],
+          'ckeditor5_style' => [
+            'styles' => [
+              [
+                'label' => 'Text align',
+                'element' => '<p class="text-align-justify">',
+              ],
+            ],
+          ],
+        ],
+      ],
+      'image_upload' => [
+        'status' => FALSE,
+      ],
+      'filters' => [
+        'filter_html' => [
+          'id' => 'filter_html',
+          'provider' => 'filter',
+          'status' => TRUE,
+          'weight' => 0,
+          'settings' => [
+            'allowed_html' => '<p class="text-align-justify"> <br>',
+            'filter_html_help' => TRUE,
+            'filter_html_nofollow' => TRUE,
+          ],
+        ],
+      ],
+      'violations' => [
+        'settings.plugins.ckeditor5_style.styles.0.element' => 'A style must only specify classes not supported by other plugins. The <code>text-align-justify</code> classes on <code>&lt;p&gt;</code> are already supported by the enabled <em class="placeholder">Alignment</em> plugin.',
+      ],
+    ];
+    $data['VALID: Style plugin configured to add new class to an already restricted tag'] = [
+      'settings' => [
+        'toolbar' => [
+          'items' => [
+            'alignment',
+            'style',
+          ],
+        ],
+        'plugins' => [
+          'ckeditor5_alignment' => [
+            'enabled_alignments' => ['justify'],
+          ],
+          'ckeditor5_style' => [
+            'styles' => [
+              [
+                'label' => 'Add baguette class',
+                'element' => '<p class="baguette">',
+              ],
+            ],
+          ],
+        ],
+      ],
+      'image_upload' => [
+        'status' => FALSE,
+      ],
+      'filters' => [
+        'filter_html' => [
+          'id' => 'filter_html',
+          'provider' => 'filter',
+          'status' => TRUE,
+          'weight' => 0,
+          'settings' => [
+            'allowed_html' => '<p class="text-align-justify baguette"> <br>',
+            'filter_html_help' => TRUE,
+            'filter_html_nofollow' => TRUE,
+          ],
+        ],
+      ],
+      'violations' => [],
+    ];
+    $data['VALID: Style plugin configured to add class to an element provided by an explicit plugin that already allows all classes'] = [
+      'settings' => [
+        'toolbar' => [
+          'items' => [
+            'kbdAllClasses',
+            'style',
+          ],
+        ],
+        'plugins' => [
+          'ckeditor5_style' => [
+            'styles' => [
+              [
+                'label' => 'Add baguette class',
+                'element' => '<kbd class="baguette">',
+              ],
+            ],
+          ],
+        ],
+      ],
+      'image_upload' => [
+        'status' => FALSE,
+      ],
+      'filters' => [
+        'filter_html' => [
+          'id' => 'filter_html',
+          'provider' => 'filter',
+          'status' => TRUE,
+          'weight' => 0,
+          'settings' => [
+            'allowed_html' => '<p> <br> <kbd class>',
+            'filter_html_help' => TRUE,
+            'filter_html_nofollow' => TRUE,
+          ],
+        ],
+      ],
+      'violations' => [],
+    ];
+    $data['VALID: Style plugin configured to add class to GHS-supported HTML5 tag'] = [
+      'settings' => [
+        'toolbar' => [
+          'items' => [
+            'style',
+            'sourceEditing',
+          ],
+        ],
+        'plugins' => [
+          'ckeditor5_sourceEditing' => [
+            'allowed_tags' => [
+              '<kbd>',
+            ],
+          ],
+          'ckeditor5_style' => [
+            'styles' => [
+              [
+                'label' => 'Add baguette class',
+                'element' => '<kbd class="baguette">',
+              ],
+            ],
+          ],
+        ],
+      ],
+      'image_upload' => [
+        'status' => FALSE,
+      ],
+      'filters' => [
+        'filter_html' => [
+          'id' => 'filter_html',
+          'provider' => 'filter',
+          'status' => TRUE,
+          'weight' => 0,
+          'settings' => [
+            'allowed_html' => '<p> <br> <kbd class="baguette">',
+            'filter_html_help' => TRUE,
+            'filter_html_nofollow' => TRUE,
+          ],
+        ],
+      ],
+      'violations' => [],
+    ];
+    $data['VALID: Style plugin configured to add class to GHS-supported HTML5 tag that already allows all classes'] = [
+      'settings' => [
+        'toolbar' => [
+          'items' => [
+            'style',
+            'sourceEditing',
+          ],
+        ],
+        'plugins' => [
+          'ckeditor5_sourceEditing' => [
+            'allowed_tags' => [
+              '<bdi class>',
+            ],
+          ],
+          'ckeditor5_style' => [
+            'styles' => [
+              [
+                'label' => 'Bidirectional name',
+                'element' => '<bdi class="name">',
+              ],
+            ],
+          ],
+        ],
+      ],
+      'image_upload' => [
+        'status' => FALSE,
+      ],
+      'filters' => [
+        'filter_html' => [
+          'id' => 'filter_html',
+          'provider' => 'filter',
+          'status' => TRUE,
+          'weight' => 0,
+          'settings' => [
+            'allowed_html' => '<p> <br> <bdi class>',
+            'filter_html_help' => TRUE,
+            'filter_html_nofollow' => TRUE,
+          ],
+        ],
+      ],
+      'violations' => [],
+    ];
     return $data;
   }
 

@@ -4,7 +4,6 @@
 * https://www.drupal.org/node/2815083
 * @preserve
 **/
-
 (function ($, Drupal, drupalSettings) {
   var ids = [];
   Drupal.behaviors.copyFieldValue = {
@@ -12,7 +11,6 @@
       Object.keys(drupalSettings.copyFieldValue || {}).forEach(function (element) {
         ids.push(element);
       });
-
       if (ids.length) {
         $(once('copy-field-values', 'body')).on('value:copy', this.valueTargetCopyHandler);
         $(once('copy-field-values', "#".concat(ids.join(', #')))).on('blur', this.valueSourceBlurHandler);
@@ -25,14 +23,13 @@
       }
     },
     valueTargetCopyHandler: function valueTargetCopyHandler(e, value) {
-      var $target = $(e.target);
-
-      if ($target.val() === '') {
-        $target.val(value);
+      var target = e.target;
+      if (target.value === '') {
+        target.value = value;
       }
     },
     valueSourceBlurHandler: function valueSourceBlurHandler(e) {
-      var value = $(e.target).val();
+      var value = e.target.value;
       var targetIds = drupalSettings.copyFieldValue[e.target.id];
       $("#".concat(targetIds.join(', #'))).trigger('value:copy', value);
     }

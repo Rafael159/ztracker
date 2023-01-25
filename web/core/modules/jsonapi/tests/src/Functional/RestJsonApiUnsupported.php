@@ -2,6 +2,7 @@
 
 namespace Drupal\Tests\jsonapi\Functional;
 
+use Drupal\Core\Cache\CacheableMetadata;
 use Drupal\Core\Url;
 use Drupal\node\Entity\Node;
 use Drupal\node\Entity\NodeType;
@@ -64,10 +65,6 @@ class RestJsonApiUnsupported extends ResourceTestBase {
   public function setUp(): void {
     parent::setUp();
 
-    // Set up a HTTP client that accepts relative URLs.
-    $this->httpClient = $this->container->get('http_client_factory')
-      ->fromOptions(['base_uri' => $this->baseUrl]);
-
     // Create a "Camelids" node type.
     NodeType::create([
       'name' => 'Camelids',
@@ -117,11 +114,15 @@ class RestJsonApiUnsupported extends ResourceTestBase {
   /**
    * {@inheritdoc}
    */
-  protected function getExpectedUnauthorizedAccessMessage($method) {}
+  protected function getExpectedUnauthorizedAccessMessage($method) {
+    return '';
+  }
 
   /**
    * {@inheritdoc}
    */
-  protected function getExpectedUnauthorizedAccessCacheability() {}
+  protected function getExpectedUnauthorizedAccessCacheability() {
+    return (new CacheableMetadata());
+  }
 
 }

@@ -284,7 +284,7 @@ class TaxonomyIndexTid extends ManyToOne {
       $this->helper->buildOptionsForm($form, $form_state);
 
       // Show help text if not exposed to end users.
-      $form['value']['#description'] = t('Leave blank for all. Otherwise, the first selected term will be the default instead of "Any".');
+      $form['value']['#description'] = $this->t('Leave blank for all. Otherwise, the first selected term will be the default instead of "Any".');
     }
   }
 
@@ -348,6 +348,12 @@ class TaxonomyIndexTid extends ManyToOne {
     }
 
     $identifier = $this->options['expose']['identifier'];
+    $input = $form_state->getValue($identifier);
+
+    if ($this->options['is_grouped'] && isset($this->options['group_info']['group_items'][$input])) {
+      $this->validated_exposed_input = $this->options['group_info']['group_items'][$input]['value'];
+      return;
+    }
 
     // We only validate if they've chosen the text field style.
     if ($this->options['type'] != 'textfield') {

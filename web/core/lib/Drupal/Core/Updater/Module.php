@@ -5,8 +5,9 @@ namespace Drupal\Core\Updater;
 use Drupal\Core\Url;
 
 /**
- * Defines a class for updating modules using
- * Drupal\Core\FileTransfer\FileTransfer classes via authorize.php.
+ * Defines a class for updating modules.
+ *
+ * Uses Drupal\Core\FileTransfer\FileTransfer classes via authorize.php.
  */
 class Module extends Updater implements UpdaterInterface {
 
@@ -87,7 +88,7 @@ class Module extends Updater implements UpdaterInterface {
     if (!self::canUpdate($this->name)) {
       return [];
     }
-    module_load_include('install', $this->name);
+    \Drupal::moduleHandler()->loadInclude($this->name, 'install');
 
     if (!\Drupal::service('update.update_hook_registry')->getAvailableUpdates($this->name)) {
       return [];

@@ -54,6 +54,10 @@ final class Settings {
       'replacement' => 'twig_sandbox_allowed_prefixes',
       'message' => 'The "twig_sandbox_whitelisted_prefixes" setting is deprecated in drupal:9.1.0 and is removed from drupal:10.0.0. Use "twig_sandbox_allowed_prefixes" instead. See https://www.drupal.org/node/3162897.',
     ],
+    'block_interest_cohort' => [
+      'replacement' => '',
+      'message' => 'The "block_interest_cohort" setting is deprecated in drupal:9.5.0. This setting should be removed from the settings file, since its usage has been removed. See https://www.drupal.org/node/3320787.',
+    ],
   ];
 
   /**
@@ -160,20 +164,7 @@ final class Settings {
     self::handleDeprecations($settings);
 
     // Initialize databases.
-    foreach ($databases as $key => $targets) {
-      foreach ($targets as $target => $info) {
-        Database::addConnectionInfo($key, $target, $info);
-        // If the database driver is provided by a module, then its code may
-        // need to be instantiated prior to when the module's root namespace
-        // is added to the autoloader, because that happens during service
-        // container initialization but the container definition is likely in
-        // the database. Therefore, allow the connection info to specify an
-        // autoload directory for the driver.
-        if (isset($info['autoload'])) {
-          $class_loader->addPsr4($info['namespace'] . '\\', $info['autoload']);
-        }
-      }
-    }
+    Database::setMultipleConnectionInfo($databases, $class_loader, $app_root);
 
     // Initialize Settings.
     new Settings($settings);

@@ -26,13 +26,6 @@ class FundamentalCompatibilityConstraint extends Constraint {
   public $noMarkupFiltersMessage = 'CKEditor 5 only works with HTML-based text formats. The "%filter_label" (%filter_plugin_id) filter implies this text format is not HTML anymore.';
 
   /**
-   * The violation message when fundamental HTML elements are forbidden.
-   *
-   * @var string
-   */
-  public $forbiddenElementsMessage = 'CKEditor 5 needs at least the &lt;p&gt; and &lt;br&gt; tags to be allowed to be able to function. They are forbidden by the "%filter_label" (%filter_plugin_id) filter.';
-
-  /**
    * The violation message when fundamental HTML elements are not allowed.
    *
    * @var string
@@ -52,5 +45,12 @@ class FundamentalCompatibilityConstraint extends Constraint {
    * @var string
    */
   public $missingElementsMessage = 'The current CKEditor 5 build requires the following elements and attributes: <br><code>@list</code><br>The following elements are missing: <br><code>@diff</code>';
+
+  /**
+   * The violation message when CKE5 cannot create a needed tag.
+   *
+   * @var string
+   */
+  public $nonCreatableTagMessage = 'The %plugin plugin needs another plugin to create <code>@non_creatable_tag</code>, for it to be able to create the following attributes: <code>@attributes_on_tag</code>. Enable a plugin that supports creating this tag. If none exists, you can configure the Source Editing plugin to support it.';
 
 }

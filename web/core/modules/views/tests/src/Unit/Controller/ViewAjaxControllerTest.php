@@ -3,6 +3,7 @@
 namespace Drupal\Tests\views\Unit\Controller;
 
 use Drupal\Core\Render\RenderContext;
+use Drupal\Core\Render\Renderer;
 use Drupal\Tests\UnitTestCase;
 use Drupal\views\Ajax\ViewAjaxResponse;
 use Drupal\views\Controller\ViewAjaxController;
@@ -94,7 +95,7 @@ class ViewAjaxControllerTest extends UnitTestCase {
     $element_info_manager = $this->createMock('\Drupal\Core\Render\ElementInfoManagerInterface');
     $request_stack = new RequestStack();
     $request_stack->push(new Request());
-    $args = [
+    $this->renderer = new Renderer(
       $this->createMock('\Drupal\Core\Controller\ControllerResolverInterface'),
       $this->createMock('\Drupal\Core\Theme\ThemeManagerInterface'),
       $element_info_manager,
@@ -106,12 +107,8 @@ class ViewAjaxControllerTest extends UnitTestCase {
           'languages:language_interface',
           'theme',
         ],
-      ],
-    ];
-    $this->renderer = $this->getMockBuilder('Drupal\Core\Render\Renderer')
-      ->setConstructorArgs($args)
-      ->onlyMethods([])
-      ->getMock();
+      ]
+    );
     $container = new ContainerBuilder();
     $container->set('renderer', $this->renderer);
     \Drupal::setContainer($container);
@@ -137,7 +134,7 @@ class ViewAjaxControllerTest extends UnitTestCase {
     $this->viewStorage->expects($this->once())
       ->method('load')
       ->with('test_view')
-      ->will($this->returnValue(FALSE));
+      ->willReturn(FALSE);
 
     $this->expectException(NotFoundHttpException::class);
     $this->viewAjaxController->ajaxView($request);
@@ -158,19 +155,19 @@ class ViewAjaxControllerTest extends UnitTestCase {
     $this->viewStorage->expects($this->once())
       ->method('load')
       ->with('test_view')
-      ->will($this->returnValue($view));
+      ->willReturn($view);
 
     $executable = $this->getMockBuilder('Drupal\views\ViewExecutable')
       ->disableOriginalConstructor()
       ->getMock();
     $executable->expects($this->once())
       ->method('access')
-      ->will($this->returnValue(FALSE));
+      ->willReturn(FALSE);
 
     $this->executableFactory->expects($this->once())
       ->method('get')
       ->with($view)
-      ->will($this->returnValue($executable));
+      ->willReturn($executable);
 
     $this->expectException(AccessDeniedHttpException::class);
     $this->viewAjaxController->ajaxView($request);
@@ -339,7 +336,7 @@ class ViewAjaxControllerTest extends UnitTestCase {
     $display_collection->expects($this->any())
       ->method('get')
       ->with('page_1')
-      ->will($this->returnValue($display_handler));
+      ->willReturn($display_handler);
     $executable->displayHandlers = $display_collection;
 
     $response = $this->viewAjaxController->ajaxView($request);
@@ -370,25 +367,25 @@ class ViewAjaxControllerTest extends UnitTestCase {
     $this->viewStorage->expects($this->once())
       ->method('load')
       ->with('test_view')
-      ->will($this->returnValue($view));
+      ->willReturn($view);
 
     $executable = $this->getMockBuilder('Drupal\views\ViewExecutable')
       ->disableOriginalConstructor()
       ->getMock();
     $executable->expects($this->once())
       ->method('access')
-      ->will($this->returnValue(TRUE));
+      ->willReturn(TRUE);
     $executable->expects($this->any())
       ->method('setDisplay')
       ->willReturn(TRUE);
     $executable->expects($this->atMost(1))
       ->method('preview')
-      ->will($this->returnValue(['#markup' => 'View result']));
+      ->willReturn(['#markup' => 'View result']);
 
     $this->executableFactory->expects($this->once())
       ->method('get')
       ->with($view)
-      ->will($this->returnValue($executable));
+      ->willReturn($executable);
 
     $display_handler = $this->getMockBuilder('Drupal\views\Plugin\views\display\DisplayPluginBase')
       ->disableOriginalConstructor()
@@ -406,7 +403,7 @@ class ViewAjaxControllerTest extends UnitTestCase {
     $display_collection->expects($this->any())
       ->method('get')
       ->with('page_1')
-      ->will($this->returnValue($display_handler));
+      ->willReturn($display_handler);
 
     $executable->display_handler = $display_handler;
     $executable->displayHandlers = $display_collection;

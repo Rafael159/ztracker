@@ -16,10 +16,10 @@ use Drupal\Core\Pager\PagerManagerInterface;
 /**
  * Base Database API class.
  *
- * This class provides a Drupal-specific extension of the PDO database
- * abstraction class in PHP. Every database driver implementation must provide a
- * concrete implementation of it to support special handling required by that
- * database.
+ * This class provides a Drupal extension for a client database connection.
+ * Every database driver implementation must provide a concrete implementation
+ * of it to support special handling required by that database.
+ * The most common database abstraction layer in PHP is PDO.
  *
  * @see http://php.net/manual/book.pdo.php
  */
@@ -112,9 +112,9 @@ abstract class Connection {
   protected $temporaryNameIndex = 0;
 
   /**
-   * The actual PDO connection.
+   * The actual client connection.
    *
-   * @var \PDO
+   * @var object
    */
   protected $connection;
 
@@ -220,8 +220,8 @@ abstract class Connection {
   /**
    * Constructs a Connection object.
    *
-   * @param \PDO $connection
-   *   An object of the PDO class representing a database connection.
+   * @param object $connection
+   *   An object of the client class representing a database connection.
    * @param array $connection_options
    *   An array of options for the connection. May include the following:
    *   - prefix
@@ -230,7 +230,7 @@ abstract class Connection {
    *   An 'extra_prefix' option may be present to allow BC for attaching
    *   per-table prefixes, but it is meant for internal use only.
    */
-  public function __construct(\PDO $connection, array $connection_options) {
+  public function __construct(object $connection, array $connection_options) {
     if ($this->identifierQuotes === NULL) {
       @trigger_error('In drupal:10.0.0 not setting the $identifierQuotes property in the concrete Connection class will result in an RuntimeException. See https://www.drupal.org/node/2986894', E_USER_DEPRECATED);
       $this->identifierQuotes = ['', ''];
@@ -303,15 +303,15 @@ abstract class Connection {
   }
 
   /**
-   * Opens a PDO connection.
+   * Opens a client connection.
    *
    * @param array $connection_options
    *   The database connection settings array.
    *
-   * @return \PDO
-   *   A \PDO object.
+   * @return object
+   *   A client connection object.
    */
-  public static function open(array &$connection_options = []) {}
+  abstract public static function open(array &$connection_options = []);
 
   /**
    * Destroys this Connection object.
@@ -342,7 +342,7 @@ abstract class Connection {
   }
 
   /**
-   * Ensures that the PDO connection can be garbage collected.
+   * Ensures that the client connection can be garbage collected.
    */
   public function __destruct() {
     // Call the ::destroy method to provide a BC layer.
@@ -362,17 +362,17 @@ abstract class Connection {
    * A given query can be customized with a number of option flags in an
    * associative array:
    * - fetch: This element controls how rows from a result set will be
-   *   returned. Legal values include PDO::FETCH_ASSOC, PDO::FETCH_BOTH,
-   *   PDO::FETCH_OBJ, PDO::FETCH_NUM, or a string representing the name of a
+   *   returned. Legal values include \PDO::FETCH_ASSOC, \PDO::FETCH_BOTH,
+   *   \PDO::FETCH_OBJ, \PDO::FETCH_NUM, or a string representing the name of a
    *   class. If a string is specified, each record will be fetched into a new
    *   object of that class. The behavior of all other values is defined by PDO.
    *   See http://php.net/manual/pdostatement.fetch.php
-   * - return: Depending on the type of query, different return values may be
-   *   meaningful. This directive instructs the system which type of return
-   *   value is desired. The system will generally set the correct value
-   *   automatically, so it is extremely rare that a module developer will ever
-   *   need to specify this value. Setting it incorrectly will likely lead to
-   *   unpredictable results or fatal errors. Legal values include:
+   * - return: (deprecated) Depending on the type of query, different return
+   *   values may be meaningful. This directive instructs the system which type
+   *   of return value is desired. The system will generally set the correct
+   *   value automatically, so it is extremely rare that a module developer will
+   *   ever need to specify this value. Setting it incorrectly will likely lead
+   *   to unpredictable results or fatal errors. Legal values include:
    *   - Database::RETURN_STATEMENT: Return the prepared statement object for
    *     the query. This is usually only meaningful for SELECT queries, where
    *     the statement object is how one accesses the result set returned by the
@@ -402,11 +402,11 @@ abstract class Connection {
    *   database type. In rare cases, such as creating an SQL function, []
    *   characters might be needed and can be allowed by changing this option to
    *   TRUE.
-   * - pdo: By default, queries will execute with the PDO options set on the
-   *   connection. In particular cases, it could be necessary to override the
-   *   PDO driver options on the statement level. In such case, pass the
-   *   required setting as an array here, and they will be passed to the
-   *   prepared statement. See https://www.php.net/manual/en/pdo.prepare.php.
+   * - pdo: By default, queries will execute with the client connection options
+   *   set on the connection. In particular cases, it could be necessary to
+   *   override the driver options on the statement level. In such case, pass
+   *   the required setting as an array here, and they will be passed to the
+   *   prepared statement.
    *
    * @return array
    *   An array of default query options.
@@ -414,7 +414,6 @@ abstract class Connection {
   protected function defaultOptions() {
     return [
       'fetch' => \PDO::FETCH_OBJ,
-      'return' => Database::RETURN_STATEMENT,
       'allow_delimiter_in_query' => FALSE,
       'allow_square_brackets' => FALSE,
       'pdo' => [],
@@ -608,7 +607,7 @@ abstract class Connection {
    *   object. Defaults to FALSE.
    *
    * @return \Drupal\Core\Database\StatementInterface
-   *   A PDO prepared statement ready for its execute() method.
+   *   A prepared statement ready for its execute() method.
    *
    * @throws \InvalidArgumentException
    *   If multiple statements are included in the string, and delimiters are
@@ -616,6 +615,10 @@ abstract class Connection {
    * @throws \Drupal\Core\Database\DatabaseExceptionWrapper
    */
   public function prepareStatement(string $query, array $options, bool $allow_row_count = FALSE): StatementInterface {
+    if (isset($options['return'])) {
+      @trigger_error('Passing "return" option to ' . __METHOD__ . '() is deprecated in drupal:9.4.0 and is removed in drupal:11.0.0. For data manipulation operations, use dynamic queries instead. See https://www.drupal.org/node/3185520', E_USER_DEPRECATED);
+    }
+
     try {
       $query = $this->preprocessStatement($query, $options);
 
@@ -871,8 +874,7 @@ abstract class Connection {
    * Executes a query string against the database.
    *
    * This method provides a central handler for the actual execution of every
-   * query. All queries executed by Drupal are executed as PDO prepared
-   * statements.
+   * query. All queries executed by Drupal are executed as prepared statements.
    *
    * @param string|\Drupal\Core\Database\StatementInterface|\PDOStatement $query
    *   The query to execute. This is a string containing an SQL query with
@@ -914,6 +916,11 @@ abstract class Connection {
   public function query($query, array $args = [], $options = []) {
     // Use default values if not already set.
     $options += $this->defaultOptions();
+
+    if (isset($options['return'])) {
+      @trigger_error('Passing "return" option to ' . __METHOD__ . '() is deprecated in drupal:9.4.0 and is removed in drupal:11.0.0. For data manipulation operations, use dynamic queries instead. See https://www.drupal.org/node/3185520', E_USER_DEPRECATED);
+    }
+
     assert(!isset($options['target']), 'Passing "target" option to query() has no effect. See https://www.drupal.org/node/2993033');
 
     // We allow either a pre-bound statement object (deprecated) or a literal
@@ -946,7 +953,10 @@ abstract class Connection {
       // Depending on the type of query we may need to return a different value.
       // See DatabaseConnection::defaultOptions() for a description of each
       // value.
-      switch ($options['return']) {
+      // @todo the block below is deprecated and as of Drupal 11 will be
+      //   removed, query() will only return a StatementInterface object.
+      // @see https://www.drupal.org/project/drupal/issues/3256524
+      switch ($options['return'] ?? Database::RETURN_STATEMENT) {
         case Database::RETURN_STATEMENT:
           return $stmt;
 
@@ -959,7 +969,7 @@ abstract class Connection {
 
         case Database::RETURN_INSERT_ID:
           $sequence_name = $options['sequence_name'] ?? NULL;
-          return $this->connection->lastInsertId($sequence_name);
+          return $this->lastInsertId($sequence_name);
 
         case Database::RETURN_NULL:
           return NULL;
@@ -1232,6 +1242,36 @@ abstract class Connection {
   public function insert($table, array $options = []) {
     $class = $this->getDriverClass('Insert');
     return new $class($this, $table, $options);
+  }
+
+  /**
+   * Returns the ID of the last inserted row or sequence value.
+   *
+   * This method should normally be used only within database driver code.
+   *
+   * This is a proxy to invoke lastInsertId() from the wrapped connection.
+   * If a sequence name is not specified for the name parameter, this returns a
+   * string representing the row ID of the last row that was inserted into the
+   * database.
+   * If a sequence name is specified for the name parameter, this returns a
+   * string representing the last value retrieved from the specified sequence
+   * object.
+   *
+   * @param string|null $name
+   *   (Optional) Name of the sequence object from which the ID should be
+   *   returned.
+   *
+   * @return string
+   *   The value returned by the wrapped connection.
+   *
+   * @throws \Drupal\Core\Database\DatabaseExceptionWrapper
+   *   In case of failure.
+   */
+  public function lastInsertId(?string $name = NULL): string {
+    if (($last_insert_id = $this->connection->lastInsertId($name)) === FALSE) {
+      throw new DatabaseExceptionWrapper("Could not determine last insert id" . $name === NULL ? '' : " for sequence $name");
+    }
+    return $last_insert_id;
   }
 
   /**
@@ -1774,11 +1814,6 @@ abstract class Connection {
    *
    * @return string
    *   The name of the temporary table.
-   *
-   * @deprecated in drupal:9.3.0 and is removed from drupal:10.0.0. There is no
-   *   replacement.
-   *
-   * @see https://www.drupal.org/node/3211781
    */
   abstract public function queryTemporary($query, array $args = [], array $options = []);
 
@@ -1797,6 +1832,11 @@ abstract class Connection {
 
   /**
    * Returns the version of the database server.
+   *
+   * Assumes the client connection is \PDO. Non-PDO based drivers need to
+   * override this method.
+   *
+   * @return string
    */
   public function version() {
     return $this->connection->getAttribute(\PDO::ATTR_SERVER_VERSION);
@@ -1804,6 +1844,11 @@ abstract class Connection {
 
   /**
    * Returns the version of the database client.
+   *
+   * Assumes the client connection is \PDO. Non-PDO based drivers need to
+   * override this method.
+   *
+   * @return string
    */
   public function clientVersion() {
     return $this->connection->getAttribute(\PDO::ATTR_CLIENT_VERSION);
@@ -1839,7 +1884,9 @@ abstract class Connection {
   }
 
   /**
-   * Returns the name of the PDO driver for this connection.
+   * Returns the name of the database engine accessed by this driver.
+   *
+   * @return string
    */
   abstract public function databaseType();
 
@@ -1865,7 +1912,7 @@ abstract class Connection {
    * @param string $operator
    *   The condition operator, such as "IN", "BETWEEN", etc. Case-sensitive.
    *
-   * @return
+   * @return array|null
    *   The extra handling directives for the specified operator, or NULL.
    *
    * @see \Drupal\Core\Database\Query\Condition::compile()
@@ -1878,7 +1925,7 @@ abstract class Connection {
    * We do not want to allow users to commit transactions at any time, only
    * by destroying the transaction object or allowing it to go out of scope.
    * A direct commit bypasses all of the safety checks we've built on top of
-   * PDO's transaction routines.
+   * the database client's transaction routines.
    *
    * @throws \Drupal\Core\Database\TransactionExplicitCommitNotAllowedException
    *
@@ -1901,7 +1948,7 @@ abstract class Connection {
    *   is behind, so by passing in the maximum existing ID, it can be assured
    *   that we never issue the same ID.
    *
-   * @return
+   * @return int|string
    *   An integer number larger than any number returned by earlier calls and
    *   also larger than the $existing_id if one was passed in.
    */
@@ -1967,7 +2014,7 @@ abstract class Connection {
   }
 
   /**
-   * Extracts the SQLSTATE error from the PDOException.
+   * Extracts the SQLSTATE error from a PDOException.
    *
    * @param \Exception $e
    *   The exception
@@ -2141,6 +2188,21 @@ abstract class Connection {
    */
   public function getPagerManager(): PagerManagerInterface {
     return \Drupal::service('pager.manager');
+  }
+
+  /**
+   * Runs a simple query to validate json datatype support.
+   *
+   * @return bool
+   *   Returns the query result.
+   */
+  public function hasJson(): bool {
+    try {
+      return (bool) $this->query('SELECT JSON_TYPE(\'1\')');
+    }
+    catch (\Exception $e) {
+      return FALSE;
+    }
   }
 
 }

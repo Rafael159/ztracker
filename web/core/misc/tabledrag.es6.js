@@ -1137,8 +1137,11 @@
               });
           } else {
             // Assume a numeric input field.
-            let weight =
-              parseInt($(siblings[0]).find(targetClass).val(), 10) || 0;
+            let weight = 0;
+            const $siblingTarget = $(siblings[0]).find(targetClass);
+            if ($siblingTarget.length) {
+              weight = parseInt($siblingTarget[0].value, 10) || 0;
+            }
             $(siblings)
               .find(targetClass)
               .each(function () {
@@ -1701,7 +1704,7 @@
        */
       tableDragHandle() {
         return `<a href="#" title="${Drupal.t('Drag to re-order')}"
-        class="tabledrag-handle"><div class="handle">&nbsp;</div></a>`;
+        class="tabledrag-handle"><div class="handle"></div></a>`;
       },
     },
   );

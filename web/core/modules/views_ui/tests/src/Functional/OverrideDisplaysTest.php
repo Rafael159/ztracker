@@ -14,8 +14,11 @@ class OverrideDisplaysTest extends UITestBase {
    */
   protected $defaultTheme = 'stark';
 
-  protected function setUp($import_test_views = TRUE): void {
-    parent::setUp($import_test_views);
+  /**
+   * {@inheritdoc}
+   */
+  protected function setUp($import_test_views = TRUE, $modules = ['views_test_config']): void {
+    parent::setUp($import_test_views, $modules);
 
     $this->drupalPlaceBlock('page_title_block');
   }

@@ -41,9 +41,9 @@ function views_post_update_field_names_for_multivalue_fields(&$sandbox = NULL) {
   /** @var \Drupal\views\ViewsConfigUpdater $view_config_updater */
   $view_config_updater = \Drupal::classResolver(ViewsConfigUpdater::class);
   $view_config_updater->setDeprecationsEnabled(FALSE);
-  \Drupal::classResolver(ConfigEntityUpdater::class)->update($sandbox, 'view', function ($view) use ($view_config_updater) {
+  return \Drupal::classResolver(ConfigEntityUpdater::class)->update($sandbox, 'view', function ($view) use ($view_config_updater) {
     return $view_config_updater->needsMultivalueBaseFieldUpdate($view);
-  });
+  }, TRUE);
 }
 
 /**
@@ -86,4 +86,22 @@ function views_post_update_sort_identifier(?array &$sandbox = NULL): void {
   \Drupal::classResolver(ConfigEntityUpdater::class)->update($sandbox, 'view', function (ViewEntityInterface $view) use ($view_config_updater): bool {
     return $view_config_updater->needsSortFieldIdentifierUpdate($view);
   });
+}
+
+/**
+ * Clear caches due to adding a relationship from revision table to base table.
+ */
+function views_post_update_provide_revision_table_relationship() {
+  // Empty post-update hook.
+}
+
+/**
+ * Add lazy load options to all image type field configurations.
+ */
+function views_post_update_image_lazy_load(?array &$sandbox = NULL): void {
+  /** @var \Drupal\views\ViewsConfigUpdater $view_config_updater */
+  $view_config_updater = \Drupal::classResolver(ViewsConfigUpdater::class);
+  \Drupal::classResolver(ConfigEntityUpdater::class)->update($sandbox, 'view', function (ViewEntityInterface $view) use ($view_config_updater): bool {
+    return $view_config_updater->needsImageLazyLoadFieldUpdate($view);
+  }, TRUE);
 }

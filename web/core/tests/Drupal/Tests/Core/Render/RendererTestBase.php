@@ -59,7 +59,7 @@ abstract class RendererTestBase extends UnitTestCase {
   /**
    * @var \Drupal\Core\Cache\Context\CacheContextsManager|\PHPUnit\Framework\MockObject\MockObject
    */
-  protected $cacheContexts;
+  protected $cacheContextsManager;
 
   /**
    * The mocked controller resolver.
@@ -109,6 +109,7 @@ abstract class RendererTestBase extends UnitTestCase {
       'contexts' => ['session', 'user'],
       'tags' => ['current-temperature'],
     ],
+    'debug' => FALSE,
   ];
 
   /**

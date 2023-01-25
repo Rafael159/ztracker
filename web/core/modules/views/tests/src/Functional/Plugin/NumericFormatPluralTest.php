@@ -33,8 +33,11 @@ class NumericFormatPluralTest extends ViewTestBase {
    */
   public static $testViews = ['numeric_test'];
 
-  protected function setUp($import_test_views = TRUE): void {
-    parent::setUp($import_test_views);
+  /**
+   * {@inheritdoc}
+   */
+  protected function setUp($import_test_views = TRUE, $modules = ['views_test_config']): void {
+    parent::setUp($import_test_views, $modules);
 
     $web_user = $this->drupalCreateUser([
       'administer views',

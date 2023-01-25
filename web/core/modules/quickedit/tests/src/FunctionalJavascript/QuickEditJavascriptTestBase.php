@@ -78,7 +78,7 @@ class QuickEditJavascriptTestBase extends WebDriverTestBase {
     }
     $this->assertTrue(TRUE, 'All contextual links triggers are visible.');
 
-    // @todo Press tab key to verify that tabbing is now contrained to only
+    // @todo Press tab key to verify that tabbing is now constrained to only
     // contextual links triggers: https://www.drupal.org/node/2834776
 
     // Assert that the contextual links associated with the entity's contextual
@@ -282,6 +282,7 @@ JS;
   protected function typeInPlainTextEditor($css_selector, $text) {
     $field = $this->getSession()->getPage()->find('css', $css_selector);
     $field->setValue(Key::END . $text);
+    $this->getSession()->evaluateScript("document.querySelector('$css_selector').dispatchEvent(new Event('blur', {bubbles:true}))");
   }
 
   /**

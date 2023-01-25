@@ -22,7 +22,7 @@ class BlockCacheTest extends BrowserTestBase {
   /**
    * {@inheritdoc}
    */
-  protected $defaultTheme = 'classy';
+  protected $defaultTheme = 'stark';
 
   /**
    * A user with permission to create and edit books and to administer blocks.
@@ -52,6 +52,9 @@ class BlockCacheTest extends BrowserTestBase {
    */
   protected $block;
 
+  /**
+   * {@inheritdoc}
+   */
   protected function setUp(): void {
     parent::setUp();
 

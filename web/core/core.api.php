@@ -114,7 +114,7 @@
  *   and HAL.
  * - Node entity support is configured by default. If you would like to support
  *   other types of entities, you can copy
- *   core/modules/rest/config/install/rest.settings.yml to your sync
+ *   core/modules/hal/config/optional/rest.resource.entity.node.yml to your sync
  *   configuration directory, appropriately modified for other entity types,
  *   and import it. Support for GET on the log from the Database Logging module
  *   can also be enabled in this way; in this case, the 'entity:node' line
@@ -191,7 +191,7 @@
  * // Find out when cron was last run; the key is 'system.cron_last'.
  * $time = $state->get('system.cron_last');
  * // Set the cron run time to the current request time.
- * $state->set('system.cron_last', REQUEST_TIME);
+ * $state->set('system.cron_last', \Drupal::time()->getRequestTime());
  * @endcode
  *
  * For more on the State API, see https://www.drupal.org/developing/api/8/state
@@ -587,9 +587,10 @@
  *
  * @section configuration Configuration
  *
- * By default cached data is stored in the database. This can be configured
- * though so that all cached data, or that of an individual cache bin, uses a
- * different cache backend, such as APCu or Memcache, for storage.
+ * By default, cached data is stored in the database. However, Drupal can be
+ * configured to use a different backend (specified in their service
+ * definition), e.g. APCu or Memcache. This configuration can nominate a
+ * different backend for all cached data or for specific cache bins.
  *
  * In a settings.php file, you can override the service used for a particular
  * cache bin. For example, if your service implementation of
@@ -887,6 +888,10 @@
  *   @endcode
  *   Note that $container here is an instance of
  *   \Drupal\Core\DependencyInjection\ContainerBuilder.
+ *
+ * @section lazy_services Lazy services
+ * Some services can be declared as lazy to improve performance. See @link
+ * lazy_services Lazy Services @endlink for details.
  *
  * @see https://www.drupal.org/node/2133171
  * @see core.services.yml
@@ -1923,10 +1928,11 @@ function hook_cron() {
   // Short-running operation example, not using a queue:
   // Delete all expired records since the last cron run.
   $expires = \Drupal::state()->get('mymodule.last_check', 0);
+  $request_time = \Drupal::time()->getRequestTime();
   \Drupal::database()->delete('mymodule_table')
     ->condition('expires', $expires, '>=')
     ->execute();
-  \Drupal::state()->set('mymodule.last_check', REQUEST_TIME);
+  \Drupal::state()->set('mymodule.last_check', $request_time);
 
   // Long-running operation example, leveraging a queue:
   // Queue news feeds for updates once their refresh interval has elapsed.
@@ -1935,13 +1941,13 @@ function hook_cron() {
   foreach (Feed::loadMultiple($ids) as $feed) {
     if ($queue->createItem($feed)) {
       // Add timestamp to avoid queueing item more than once.
-      $feed->setQueuedTime(REQUEST_TIME);
+      $feed->setQueuedTime($request_time);
       $feed->save();
     }
   }
   $ids = \Drupal::entityQuery('aggregator_feed')
     ->accessCheck(FALSE)
-    ->condition('queued', REQUEST_TIME - (3600 * 6), '<')
+    ->condition('queued', $request_time - (3600 * 6), '<')
     ->execute();
   if ($ids) {
     $feeds = Feed::loadMultiple($ids);
@@ -2489,6 +2495,32 @@ function hook_validation_constraint_alter(array &$definitions) {
  * information on services and the dependency injection container.
  *
  * @}
+ */
+
+/**
+ * @defgroup lazy_services Lazy Services
+ * @{
+ * Lazy services overview
+ *
+ * A service can be declared as lazy in order to improve performance. Classes
+ * that inject a lazy service receive a proxy class instead, and when a method
+ * on the lazy service is called, the proxy class gets the service from the
+ * container and forwards the method call. This means that the lazy service is
+ * only instantiated when it is needed.
+ *
+ * This is useful because some classes may inject a service which is expensive
+ * to instantiate (because it has multiple dependencies of its own), but is only
+ * used in exceptional cases. This would make the class dependent on the
+ * expensive service and all of the expensive service's dependencies.
+ *
+ * Making the expensive service lazy means that the class is only dependent on
+ * the proxy service, and not on all the dependencies of the lazy service.
+ *
+ * To define a service as lazy, add @code lazy: true @endcode to the service
+ * definition, and use the @code core/scripts/generate-proxy.sh @endcode script
+ * to generate the proxy class.
+ *
+ * @see core/scripts/generate-proxy.sh
  */
 
 /**

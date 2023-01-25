@@ -25,8 +25,11 @@ class NodeFieldMultilingualTest extends BrowserTestBase {
   /**
    * {@inheritdoc}
    */
-  protected $defaultTheme = 'classy';
+  protected $defaultTheme = 'stark';
 
+  /**
+   * {@inheritdoc}
+   */
   protected function setUp(): void {
     parent::setUp();
 
@@ -140,7 +143,7 @@ class NodeFieldMultilingualTest extends BrowserTestBase {
 
     // Check if node body is showed.
     $this->drupalGet('node/' . $node->id());
-    $this->assertSession()->elementTextEquals('xpath', "//article[contains(concat(' ', normalize-space(@class), ' '), ' node ')]//div[contains(concat(' ', normalize-space(@class), ' '), 'node__content')]/descendant::p", $node->body->value);
+    $this->assertSession()->elementTextEquals('xpath', "//article/div//p", $node->body->value);
   }
 
 }

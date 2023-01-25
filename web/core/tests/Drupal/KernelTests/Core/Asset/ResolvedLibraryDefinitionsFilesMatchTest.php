@@ -2,6 +2,7 @@
 
 namespace Drupal\KernelTests\Core\Asset;
 
+use Drupal\Core\Extension\ExtensionLifecycle;
 use Drupal\KernelTests\KernelTestBase;
 
 /**
@@ -59,10 +60,9 @@ class ResolvedLibraryDefinitionsFilesMatchTest extends KernelTestBase {
    * @var string[]
    */
   protected $allThemes = [
-    'bartik',
-    'classy',
-    'seven',
-    'stable',
+    'claro',
+    'olivero',
+    'stable9',
     'stark',
   ];
 
@@ -96,21 +96,26 @@ class ResolvedLibraryDefinitionsFilesMatchTest extends KernelTestBase {
   protected function setUp(): void {
     parent::setUp();
 
-    // Install all core themes.
-    sort($this->allThemes);
-    $this->container->get('theme_installer')->install($this->allThemes);
-
     // Enable all core modules.
     $all_modules = $this->container->get('extension.list.module')->getList();
     $all_modules = array_filter($all_modules, function ($module) {
       // Filter contrib, hidden, already enabled modules and modules in the
       // Testing package.
-      if ($module->origin !== 'core' || !empty($module->info['hidden']) || $module->status == TRUE || $module->info['package'] == 'Testing') {
+      if ($module->origin !== 'core'
+        || !empty($module->info['hidden'])
+        || $module->status == TRUE
+        || $module->info['package'] == 'Testing'
+        || $module->info[ExtensionLifecycle::LIFECYCLE_IDENTIFIER] === ExtensionLifecycle::EXPERIMENTAL
+        || $module->info[ExtensionLifecycle::LIFECYCLE_IDENTIFIER] === ExtensionLifecycle::DEPRECATED) {
         return FALSE;
       }
       return TRUE;
     });
 
+    // Install the System module configuration as Olivero's block configuration
+    // depends on the system menus.
+    // @todo Remove this in https://www.drupal.org/node/3219959
+    $this->installConfig('system');
     // Install the 'user' entity schema because the workspaces module's install
     // hook creates a workspace with default uid of 1. Then the layout_builder
     // module's implementation of hook_entity_presave will cause
@@ -133,6 +138,10 @@ class ResolvedLibraryDefinitionsFilesMatchTest extends KernelTestBase {
     }
     sort($this->allModules);
     $this->container->get('module_installer')->install($this->allModules);
+
+    // Install all core themes.
+    sort($this->allThemes);
+    $this->container->get('theme_installer')->install($this->allThemes);
 
     $this->themeHandler = $this->container->get('theme_handler');
     $this->themeInitialization = $this->container->get('theme.initialization');
