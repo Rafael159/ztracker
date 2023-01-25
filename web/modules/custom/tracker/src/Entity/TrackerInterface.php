@@ -3,8 +3,6 @@
 namespace Drupal\tracker\Entity;
 
 use Drupal\Core\Entity\ContentEntityInterface;
-use Drupal\Core\Entity\EntityChangedInterface;
-use Drupal\user\EntityOwnerInterface;
 
 /**
  * Provides an Interface for defining TrackerInterface entities.
@@ -42,10 +40,23 @@ interface TrackerInterface extends ContentEntityInterface {
    *
    * @param int $timestamp
    *   The Tracker creation timestamp.
-   *
    * @return TrackerInterface
    *   The called Tracker entity.
    */
   public function setCreatedTime($timestamp);
+
+  /**
+   * Gets the time logged in the ticket.
+   *
+   * @return int
+   */
+  public function getTimeLogged(): string;
+
+  /**
+   * Gets the time the ticket was closed.
+   *
+   * @return int
+   */
+   public function getClosedTime(): string;
 
 }

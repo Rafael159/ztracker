@@ -4,13 +4,11 @@ namespace Drupal\tracker\Entity;
 
 use Drupal\Core\Entity\Annotation\ContentEntityType;
 use Drupal\Core\Entity\ContentEntityBase;
-use Drupal\Core\Entity\EntityChangedInterface;
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Field\BaseFieldDefinition;
 use Drupal\Core\Entity\EntityTypeInterface;
-use Drupal\datetime\Plugin\Field\FieldType\DateTimeItem;
-use Drupal\user\EntityOwnerInterface;
 use Drupal\user\UserInterface;
+use DateTime;
 
 /**
  * Defines the Tracker entity.
@@ -61,6 +59,119 @@ class Tracker extends ContentEntityBase implements TrackerInterface {
     $values += [
       'user_id' => \Drupal::currentUser()->id(),
     ];
+  }
+
+  /**
+   * Converts minutes to hours.
+   *
+   * @param $minutes
+   *   The minutes to be converted into hours.
+   * @return string
+   *   Returns the formatted hour.
+   */
+  public function convertsMinutesToHours($minutes): string {
+    if (!empty($minutes)) {
+      $sign = $minutes < 0 ? '-' : '';
+      $minutes = abs($minutes);
+      $hours = floor($minutes / 60);
+      $remainingMinutes = $minutes % 60;
+      return $sign . $hours . 'h' . $remainingMinutes . 'm';
+    }
+  }
+
+  /**
+   * Formats date string into d/m/Y H:i format.
+   *
+   * @param $date
+   *   The date value that needs to be formatted.
+   * @return string
+   *   The formatted date.
+   */
+  public function formatDate($date): string {
+    if (!empty($date)) {
+      return DateTime::createFromFormat('Y-m-d\TH:i:s', $date)->format('d/m/Y H:i');
+    }
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getTimeRequired(): string
+  {
+    return $this->get('estimated_time')->value;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getTimeLeftOrPassed(): int
+  {
+    return $this->getTimeRequired() - $this->getTimeLogged();
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getCreatedTime(): int
+  {
+    // TODO: Implement getCreatedTime() method.
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getTimeLogged(): string
+  {
+    return $this->get('logged_time')->value;
+  }
+
+
+  public function getClosedTime(): string
+  {
+    return $this->get('date_closed')->value;
+  }
+
+  /**
+   *{@inheritdoc}
+   */
+  public function setCreatedTime($timestamp) {
+    $this->set('created', $timestamp);
+    return $this;
+  }
+
+  public function getChangedTime()
+  {
+    // TODO: Implement getChangedTime() method.
+  }
+
+  public function setChangedTime($timestamp)
+  {
+    // TODO: Implement setChangedTime() method.
+  }
+
+  public function getChangedTimeAcrossTranslations()
+  {
+    // TODO: Implement getChangedTimeAcrossTranslations() method.
+  }
+
+  public function getOwner()
+  {
+    // TODO: Implement getOwner() method.
+  }
+
+  public function setOwner(UserInterface $account)
+  {
+    // TODO: Implement setOwner() method.
+  }
+
+  public function getOwnerId()
+  {
+    // TODO: Implement getOwnerId() method.
+  }
+
+  public function setOwnerId($uid)
+  {
+    // TODO: Implement setOwnerId() method.
   }
 
   /**
@@ -300,70 +411,4 @@ class Tracker extends ContentEntityBase implements TrackerInterface {
     return $fields;
   }
 
-  /**
-   * {@inheritdoc}
-   */
-  public function getTimeRequired(): string
-  {
-    // TODO: Implement getTimeRequired() method.
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function getTimeLeftOrPassed(): int
-  {
-    // TODO: Implement getTimeLeftOrPassed() method.
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function getCreatedTime(): int
-  {
-    // TODO: Implement getCreatedTime() method.
-  }
-
-  /**
-   *{@inheritdoc}
-   */
-  public function setCreatedTime($timestamp) {
-    $this->set('created', $timestamp);
-    return $this;
-  }
-
-  public function getChangedTime()
-  {
-    // TODO: Implement getChangedTime() method.
-  }
-
-  public function setChangedTime($timestamp)
-  {
-    // TODO: Implement setChangedTime() method.
-  }
-
-  public function getChangedTimeAcrossTranslations()
-  {
-    // TODO: Implement getChangedTimeAcrossTranslations() method.
-  }
-
-  public function getOwner()
-  {
-    // TODO: Implement getOwner() method.
-  }
-
-  public function setOwner(UserInterface $account)
-  {
-    // TODO: Implement setOwner() method.
-  }
-
-  public function getOwnerId()
-  {
-    // TODO: Implement getOwnerId() method.
-  }
-
-  public function setOwnerId($uid)
-  {
-    // TODO: Implement setOwnerId() method.
-  }
 }

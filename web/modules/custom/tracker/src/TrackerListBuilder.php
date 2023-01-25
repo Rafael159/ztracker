@@ -23,6 +23,7 @@ class TrackerListBuilder extends EntityListBuilder {
     $header['ticket_type'] = $this->t('Type');
     $header['estimated_time'] = $this->t('Estimated time');
     $header['logged_time'] = $this->t('Logged time');
+    $header['time_left'] = $this->t('Time left');
     $header['date_closed'] = $this->t('Date closed');
 
     return $header + parent::buildHeader();
@@ -35,13 +36,15 @@ class TrackerListBuilder extends EntityListBuilder {
     /** @var \Drupal\tracker\Entity\Tracker $entity */
     $row['id'] = $entity->id();
 
-    $ticket_url = Url::fromUri('https://zoocha.atlassian.net/browse/');
-    $row['ticket'] = Link::fromTextAndUrl($entity->get('ticket')->value, $ticket_url);
+    $ticket = $entity->get('ticket')->value;
+    $jira_url = Url::fromUri('https://zoocha.atlassian.net/browse/' . $ticket);
+    $row['ticket'] = Link::fromTextAndUrl($ticket, $jira_url);
 
-    $row['ticket_type'] = $entity->get('ticket_type')->value;
-    $row['estimated_time'] = $entity->get('ticket_type')->value;
-    $row['logged_time'] = $entity->get('ticket_type')->value;
-    $row['date_closed'] = $entity->get('ticket_type')->value;
+    $row['ticket_type'] = ucfirst($entity->get('ticket_type')->value);
+    $row['estimated_time'] = $entity->convertsMinutesToHours($entity->get('estimated_time')->value);
+    $row['logged_time'] = $entity->convertsMinutesToHours($entity->get('logged_time')->value);
+    $row['time_left'] = $entity->convertsMinutesToHours($entity->getTimeLeftOrPassed());
+    $row['date_closed'] = $entity->formatDate($entity->getClosedTime()) ?? 'No date found';
 
     return $row + parent::buildRow($entity);
   }
