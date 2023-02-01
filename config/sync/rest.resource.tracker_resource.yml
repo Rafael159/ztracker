@@ -1,8 +1,10 @@
 langcode: en
 status: true
 dependencies:
-  - user
-  - serialization
+  module:
+    - serialization
+    - tracker
+    - user
 id: tracker_resource
 plugin_id: tracker_resource
 granularity: resource
@@ -13,3 +15,4 @@ configuration:
     - json
   authentication:
     - cookie
+
