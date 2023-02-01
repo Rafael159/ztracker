@@ -9,8 +9,7 @@
 /drush/**/.git
 
 # Ignore Drupal's file directory
-/web/sites/*/files/
-/web/sites/*/files
+web/sites/default/files/*
 /web/sites/default/private/
 
 private

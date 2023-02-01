@@ -10,7 +10,8 @@ function tracker_post_update_enable_web_service_modules(&$sandbox) {
     'serialization',
     'rest',
     'basic_auth',
-    'jsonapi'
+    'jsonapi',
+    'restui',
   ];
 
   \Drupal::service('module_installer')->install($modules, TRUE);
