@@ -26,7 +26,8 @@ class TrackersResource extends ResourceBase {
    */
   public function __construct(
     array $configuration,
-    $plugin_id, $plugin_definition,
+    $plugin_id,
+    $plugin_definition,
     array $serializer_formats,
     LoggerInterface $logger,
     protected DateFormatterInterface $dateFormatter
@@ -50,9 +51,9 @@ class TrackersResource extends ResourceBase {
       $configuration,
       $plugin_id,
       $plugin_definition,
-      (array)$dateFormatter,
       $container->getParameter('serializer.formats'),
-      $container->get('logger.factory')->get('tracker_log')
+      $container->get('logger.factory')->get('tracker'),
+      $dateFormatter,
     );
   }
 
@@ -62,6 +63,7 @@ class TrackersResource extends ResourceBase {
    */
   public function get() {
     // Hold on for now.
+
     try {
       $trackers = [
         'user' => '',
