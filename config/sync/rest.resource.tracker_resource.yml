@@ -1,0 +1,15 @@
+langcode: en
+status: true
+dependencies:
+  - user
+  - serialization
+id: tracker_resource
+plugin_id: tracker_resource
+granularity: resource
+configuration:
+  methods:
+    - GET
+  formats:
+    - json
+  authentication:
+    - cookie
