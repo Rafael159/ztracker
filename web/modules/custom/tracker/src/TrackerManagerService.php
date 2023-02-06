@@ -1,6 +1,7 @@
 <?php
 namespace Drupal\tracker;
 
+use DateTime;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 
@@ -51,5 +52,37 @@ class TrackerManagerService extends TrackerManagerServiceBase {
    */
   public function getService(): TrackerManagerService {
     return \Drupal::service(self::SERVICE_ID);
+  }
+
+  /**
+   * Formats date string into d/m/Y H:i format.
+   *
+   * @param $date
+   *   The date value that needs to be formatted.
+   * @return string
+   *   The formatted date.
+   */
+  public function formatDate($date): string {
+    if (!empty($date)) {
+      return DateTime::createFromFormat('Y-m-d\TH:i:s', $date)->format('d/m/Y H:i');
+    }
+  }
+
+  /**
+   * Converts minutes to hours.
+   *
+   * @param $minutes
+   *   The minutes to be converted into hours.
+   * @return string
+   *   Returns the formatted hour.
+   */
+  public function convertsMinutesToHours($minutes): string {
+    if (!empty($minutes)) {
+      $sign = $minutes < 0 ? '-' : '';
+      $minutes = abs($minutes);
+      $hours = floor($minutes / 60);
+      $remainingMinutes = $minutes % 60;
+      return $sign . $hours . 'h' . $remainingMinutes . 'm';
+    }
   }
 }
