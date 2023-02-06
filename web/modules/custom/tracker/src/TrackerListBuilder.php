@@ -4,8 +4,11 @@ namespace Drupal\tracker;
 
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityListBuilder;
+use Drupal\Core\Entity\EntityStorageInterface;
+use Drupal\Core\Entity\EntityTypeInterface;
 use Drupal\Core\Link;
 use Drupal\Core\Url;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Defines a class to build a listing of Tracker entities.
@@ -13,6 +16,27 @@ use Drupal\Core\Url;
  * @ingroup tracker
  */
 class TrackerListBuilder extends EntityListBuilder {
+
+  /** @var TrackerManagerService. */
+  protected $trackerService;
+
+  public function __construct(
+    EntityTypeInterface $entity_type,
+    EntityStorageInterface $storage,
+    TrackerManagerService $trackerService
+  ) {
+    parent::__construct($entity_type, $storage);
+
+    $this->trackerService = $trackerService;
+  }
+
+  public static function createInstance(ContainerInterface $container, EntityTypeInterface $entity_type) {
+    return new static(
+      $entity_type,
+      $container->get('entity_type.manager')->getStorage($entity_type->id()),
+      $container->get('tracker.manager.service')
+    );
+}
 
   /**
    * {@inheritdoc}
@@ -41,10 +65,10 @@ class TrackerListBuilder extends EntityListBuilder {
     $row['ticket'] = Link::fromTextAndUrl($ticket, $jira_url);
 
     $row['ticket_type'] = ucfirst($entity->get('ticket_type')->value);
-    $row['estimated_time'] = $entity->convertsMinutesToHours($entity->get('estimated_time')->value);
-    $row['logged_time'] = $entity->convertsMinutesToHours($entity->get('logged_time')->value);
-    $row['time_left'] = $entity->convertsMinutesToHours($entity->getTimeLeftOrPassed());
-    $row['date_closed'] = $entity->formatDate($entity->getClosedTime()) ?? 'No date found';
+    $row['estimated_time'] = $this->trackerService->convertsMinutesToHours($entity->get('estimated_time')->value);
+    $row['logged_time'] = $this->trackerService->convertsMinutesToHours($entity->get('logged_time')->value);
+    $row['time_left'] = $this->trackerService->convertsMinutesToHours($entity->getTimeLeftOrPassed());
+    $row['date_closed'] = $this->trackerService->formatDate($entity->getClosedTime()) ?? 'No date found';
 
     return $row + parent::buildRow($entity);
   }

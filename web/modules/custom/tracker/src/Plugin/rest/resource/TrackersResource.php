@@ -79,9 +79,9 @@ class TrackersResource extends ResourceBase {
         $user = User::load($user_id);
 
         // All the Tracker item data.
-        $trackers = [
+        $tracker_item = [
           'user' => $user ? $user->get('name')->value : 'User name',
-          'track' => $track->id(),
+          'track_id' => $track->id(),
           'ticket' => $track->get('ticket')->value,
           'description' => $track->get('description')->value,
           'estimated_time' => $this->trackerManager->convertsMinutesToHours($track->get('estimated_time')->value),
@@ -96,13 +96,13 @@ class TrackersResource extends ResourceBase {
           'notes' => $track->get('notes')->value,
         ];
         // Append values to the end of the array.
-        array_unshift($result, $trackers);
+        array_unshift($result, $tracker_item);
       }
 
       $response = new ResourceResponse(['trackers' => $result]);
 
       foreach ($trackers as $track) {
-        $response->addCacheableDependcy($track);
+        $response->addCacheableDependency($track);
       }
 
       return $response;
@@ -112,7 +112,7 @@ class TrackersResource extends ResourceBase {
 
       $response = new ResourceResponse([]);
       foreach ($trackers as $track) {
-        $response->addCacheableDependcy($track);
+        $response->addCacheableDependency($track);
       }
       return $response;
     }
